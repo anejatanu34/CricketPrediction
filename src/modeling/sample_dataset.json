@@ -1,7 +1,7 @@
 [
   {
     "match_key":"mi_csk_33",
-    "clips_dir":"/Users/anushabala/projects/vision/data/clips/mi_csk_33",
+    "clips":"/Users/anushabala/projects/vision/data/clips/mi_csk_33",
     "innings1":"/Users/anushabala/projects/vision/data/labels/mi_csk_33_1.txt",
     "innings2":"/Users/anushabala/projects/vision/data/labels/mi_csk_33_2.txt"
   }

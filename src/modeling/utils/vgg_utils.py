@@ -71,17 +71,18 @@ class VGG16Model(Model):
 class CricketModel(Model):
     tuning_layers = []
 
-    def __init__(self, path, classes_key='synset words', mean_key='mean value',
-                 weights_key='param values', output_neurons=4, tuning_layers=None):
+    def __init__(self, path, mean_key='mean value',
+                 weights_key='param values', output_neurons=4, tuning_layers=None, class_labels=Outcome.class_labels()):
         self.net = build_model(output_neurons, tuning_layers=tuning_layers)
         model = pickle.load(open(path))
-        self.labels = model[classes_key]
-        self.mean_bgr = model[mean_key]
+        self.labels = class_labels
+        self.mean_bgr = np.reshape(model[mean_key], (3,1,1))
         self.model_weights = model[weights_key]
         self.tuning_layers = tuning_layers
 
         self._set_model_params()
 
     def _set_model_params(self):
-        lasagne.layers.set_all_param_values(self.output_layer(), self.model_weights)
+        last_layer = self.net['fc8'].input_layer
+        lasagne.layers.set_all_param_values(last_layer, self.model_weights[:-2])
 

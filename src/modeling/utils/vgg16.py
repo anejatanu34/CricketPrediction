@@ -54,7 +54,7 @@ def build_model(output_neurons=1000, tuning_layers=[]):
     net['fc7'] = DenseLayer(net['fc6_dropout'], num_units=4096)
     net['fc7_dropout'] = DropoutLayer(net['fc7'], p=0.5)
     net['fc8'] = DenseLayer(
-        net['fc7_dropout'], num_units=output_neurons, nonlinearity=None)
+        net['fc7_dropout'], num_units=output_neurons, W=HeNormal(), b=Constant(0.0), nonlinearity=None)
     net['prob'] = NonlinearityLayer(net['fc8'], softmax)
 
     return net
