@@ -13,11 +13,11 @@ from lasagne.layers import DropoutLayer
 from lasagne.layers import Pool2DLayer as PoolLayer
 from lasagne.layers import Conv2DLayer as ConvLayer
 from lasagne.nonlinearities import softmax
+from lasagne.init import HeNormal, Constant
 
 
-def build_model(output_neurons=1000):
-    net = {}
-    net['input'] = InputLayer((None, 3, 224, 224))
+def build_model(output_neurons=1000, tuning_layers=[]):
+    net = {'input': InputLayer((None, 3, 224, 224))}
     net['conv1_1'] = ConvLayer(
         net['input'], 64, 3, pad=1, flip_filters=False)
     net['conv1_2'] = ConvLayer(
@@ -54,7 +54,25 @@ def build_model(output_neurons=1000):
     net['fc7'] = DenseLayer(net['fc6_dropout'], num_units=4096)
     net['fc7_dropout'] = DropoutLayer(net['fc7'], p=0.5)
     net['fc8'] = DenseLayer(
-        net['fc7_dropout'], num_units=1000, nonlinearity=None)
+        net['fc7_dropout'], num_units=output_neurons, nonlinearity=None)
     net['prob'] = NonlinearityLayer(net['fc8'], softmax)
 
     return net
+
+
+def get_ordered_layers(exclude_pool=True, exclude_dropout=True, exclude_input=True, exclude_prob=True):
+    return ['conv1_1',
+            'conv1_2',
+            'conv2_1',
+            'conv2_2',
+            'conv3_1',
+            'conv3_2',
+            'conv4_1',
+            'conv4_2',
+            'conv4_3',
+            'conv5_1',
+            'conv5_2',
+            'conv5_3',
+            'fc6',
+            'fc7',
+            'fc8']

@@ -1,42 +1,87 @@
 __author__ = 'anushabala'
 
-from .vgg16 import build_model
+from .vgg16 import build_model, get_ordered_layers
 import pickle
 import lasagne
 import numpy as np
 
-DEFAULT_MODEL_PATH = 'vgg16.pkl'
+
+class Outcome(object):
+    RUN = 0
+    NO_RUN = 1
+    BOUNDARY = 2
+    OUT = 3
+    ILLEGAL = 4
+
+    @classmethod
+    def class_labels(cls):
+        return [cls.NO_RUN, cls.RUN, cls.BOUNDARY, cls.OUT]
+
+    @classmethod
+    def get_label_from_commentary(cls, outcome):
+        if outcome == '1' or outcome == '2':
+            return cls.RUN
+        if outcome == 'no run':
+            return cls.NO_RUN
+        if outcome == 'out':
+            return cls.OUT
+        if outcome == 'boundary':
+            return cls.BOUNDARY
+
+        return None
 
 
-class VGGModel(object):
+class Model(object):
     net = None
     labels = None
     mean_bgr = None
     model_weights = None
-
-    def __init__(self, path=DEFAULT_MODEL_PATH, classes_key='synset words', mean_key='mean value', weights_key='param values'):
-        self.net = build_model()
-        model = pickle.load(open(path))
-        self.labels = model[classes_key]
-        self.mean_bgr = model[mean_key]
-        self.model_weights = model[weights_key]
+    output_key = 'prob'
 
     def output_layer(self):
-        return self.net['prob']
+        return self.net[self.output_key]
 
     def model(self):
         return self.net
+
+    def layer(self, key):
+        return self.net[key]
+
+    def get_output(self, image, mode='train', layer_name=output_key):
+        if mode == 'test':
+            return lasagne.layers.get_output(self.layer(layer_name), image, deterministic=True)
+        else:
+            return lasagne.layers.get_output(self.layer(layer_name), image, deterministic=False)
+
+
+class VGG16Model(Model):
+    def __init__(self, path, classes_key='synset words', mean_key='mean value', weights_key='param values'):
+        self.net = build_model()
+        model = pickle.load(open(path))
+        self.labels = model[classes_key]
+        self.mean_bgr = np.reshape(model[mean_key], (3,1,1))
+        self.model_weights = model[weights_key]
+
+        self._set_model_params()
 
     def _set_model_params(self):
         lasagne.layers.set_all_param_values(self.output_layer(), self.model_weights)
 
 
-def load_model():
-    net = build_model()
-    output_layer = net['prob']
-    model = pickle.load()
-    CLASSES = model['synset words']
-    MEAN_IMAGE = np.reshape(model['mean value'], (3,1,1))
-    lasagne.layers.set_all_param_values(output_layer, model['param values'])
+class CricketModel(Model):
+    tuning_layers = []
 
-    return net, output_layer, CLASSES, MEAN_IMAGE
+    def __init__(self, path, classes_key='synset words', mean_key='mean value',
+                 weights_key='param values', output_neurons=4, tuning_layers=None):
+        self.net = build_model(output_neurons, tuning_layers=tuning_layers)
+        model = pickle.load(open(path))
+        self.labels = model[classes_key]
+        self.mean_bgr = model[mean_key]
+        self.model_weights = model[weights_key]
+        self.tuning_layers = tuning_layers
+
+        self._set_model_params()
+
+    def _set_model_params(self):
+        lasagne.layers.set_all_param_values(self.output_layer(), self.model_weights)
+
