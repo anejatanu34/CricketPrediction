@@ -13,7 +13,7 @@ def preprocess_frames(frames, **kwargs):
     raw_images = []
     for frame in frames:
         image = skimage.transform.resize(frame, size, preserve_range=True)
-        raw_image = np.copy(frame).astype('uint8')
+        raw_image = np.copy(image).astype('uint8')
         raw_images.append(raw_image)
         image = np.swapaxes(np.swapaxes(image, 1, 2), 0, 1)
         image = image[::-1, :, :]
@@ -21,4 +21,4 @@ def preprocess_frames(frames, **kwargs):
         image = image - mean_value
         preprocessed_frames.append(floatX(image))
 
-    return raw_images, preprocessed_frames
+    return np.array(raw_images), np.array(preprocessed_frames)

@@ -16,7 +16,7 @@ from lasagne.nonlinearities import softmax
 from lasagne.init import HeNormal, Constant
 
 
-def build_model(output_neurons=1000, tuning_layers=[]):
+def build_model(output_neurons=1000):
     net = {'input': InputLayer((None, 3, 224, 224))}
     net['conv1_1'] = ConvLayer(
         net['input'], 64, 3, pad=1, flip_filters=False)

@@ -4,6 +4,7 @@ from .vgg16 import build_model, get_ordered_layers
 import pickle
 import lasagne
 import numpy as np
+import theano.tensor
 
 
 class Outcome(object):
@@ -30,6 +31,17 @@ class Outcome(object):
 
         return None
 
+    @classmethod
+    def name(cls, label):
+        if label == cls.RUN:
+            return 'run'
+        if label == cls.NO_RUN:
+            return 'no run'
+        if label == cls.BOUNDARY:
+            return 'boundary'
+        if label == cls.OUT:
+            return 'out'
+
 
 class Model(object):
     net = None
@@ -47,11 +59,11 @@ class Model(object):
     def layer(self, key):
         return self.net[key]
 
-    def get_output(self, image, mode='train', layer_name=output_key):
+    def get_output(self, input_image, mode='train', layer_name=output_key):
         if mode == 'test':
-            return lasagne.layers.get_output(self.layer(layer_name), image, deterministic=True)
+            return lasagne.layers.get_output(self.layer(layer_name), input_image, deterministic=True)
         else:
-            return lasagne.layers.get_output(self.layer(layer_name), image, deterministic=False)
+            return lasagne.layers.get_output(self.layer(layer_name), input_image, deterministic=False)
 
 
 class VGG16Model(Model):
@@ -68,12 +80,12 @@ class VGG16Model(Model):
         lasagne.layers.set_all_param_values(self.output_layer(), self.model_weights)
 
 
-class CricketModel(Model):
+class AverageFrameModel(Model):
     tuning_layers = []
 
     def __init__(self, path, mean_key='mean value',
                  weights_key='param values', output_neurons=4, tuning_layers=None, class_labels=Outcome.class_labels()):
-        self.net = build_model(output_neurons, tuning_layers=tuning_layers)
+        self.net = build_model(output_neurons)
         model = pickle.load(open(path))
         self.labels = class_labels
         self.mean_bgr = np.reshape(model[mean_key], (3,1,1))
@@ -83,6 +95,21 @@ class CricketModel(Model):
         self._set_model_params()
 
     def _set_model_params(self):
+        """
+        Set params according to VGG16 pretrained weights for all layers except output layer
+        """
         last_layer = self.net['fc8'].input_layer
         lasagne.layers.set_all_param_values(last_layer, self.model_weights[:-2])
 
+    def clip_loss(self, frames, y, mode='train'):
+        """
+        Get loss for a single clip by computing the average of the loss for each frame
+        :param frames: All the frames in a single clip (4D array/tensor)
+        :param y: Class label for the clip
+        :param mode: 'train' or 'test' (to determine whether to use dropout or not
+        :return: Mean loss for every frame
+        """
+        target = theano.tensor.tile(y, frames.shape[0])
+        prediction = self.get_output(frames, mode=mode)
+        loss = lasagne.objectives.categorical_crossentropy(prediction, target)
+        return loss.mean()

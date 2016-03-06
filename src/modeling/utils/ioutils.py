@@ -1,29 +1,31 @@
 __author__ = 'anushabala'
-import matplotlib.pyplot as plt
 import os
 import numpy as np
-from vgg_utils import Outcome
+from models import Outcome
 import re
 import json
 from preprocess import preprocess_frames
+import matplotlib.pyplot as plt
 
 dir_pattern = r'ball([0-9]+)'
 
 
-def read_frames(dirname, p=1.0):
+def read_frames(dirname, p=1.0, max_frames=100):
     frames = []
     i = 1
     while True:
         name = 'frame_%d.png' % i
-        if os.path.exists(os.path.join(dirname,name)):
-            frame = plt.imread(os.path.join(dirname, name))
+        if os.path.exists(os.path.join(dirname, name)):
+            frame = plt.imread(os.path.join(dirname, name), '.png')
             if np.random.uniform() <= p:
                 frames.append(frame)
         else:
             break
 
-        i+=1
+        i += 1
 
+    while len(frames) < max_frames and max_frames > 0:
+        frames.append(np.zeros_like(frames[0]))
     return frames
 
 
@@ -48,7 +50,7 @@ def read_cricket_labels(innings1_file, innings2_file):
 
 
 # todo add support to read in more class types if needed
-def read_dataset(json_videos, sample_probability=1.0, **kwargs):
+def read_dataset(json_videos, sample_probability=1.0, max_items=-1, max_frames=100, **kwargs):
     videos = json.load(open(json_videos, 'r'), encoding='utf-8')
     X = []
     raw_X = []
@@ -61,22 +63,23 @@ def read_dataset(json_videos, sample_probability=1.0, **kwargs):
         labels, illegal_balls = read_cricket_labels(innings1, innings2)
 
         print "Reading clips from %s" % clips_dir
+        ctr = 0
         for ball_dir in os.listdir(clips_dir):
             match = re.match(dir_pattern, ball_dir)
-            ctr = 0
             if match:
                 ball_num = int(match.group(1))
-                if ctr % 25 == 0 and ctr > 0:
-                    print "Finished loading %d balls" % ctr
 
                 if ball_num not in illegal_balls:
-                    frames = read_frames(os.path.join(clips_dir, ball_dir), sample_probability)
+                    frames = read_frames(os.path.join(clips_dir, ball_dir), p=sample_probability, max_frames=max_frames)
                     raw_frames, frames = preprocess_frames(frames, **kwargs)
+                    print len(frames)
                     raw_X.append(raw_frames)
                     X.append(frames)
                     y.append(labels[ball_num - 1])
+                    ctr += 1
+            if 0 < max_items == ctr:
+                break
+            if ctr % 25 == 0 and ctr > 0:
+                print "Finished loading %d balls" % ctr
 
-                ctr += 1
-
-    return np.array(X), np.array(y), np.array(raw_X)
-
+    return np.array(X), np.array(y).astype(np.int32), np.array(raw_X)
