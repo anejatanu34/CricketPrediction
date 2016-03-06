@@ -47,6 +47,8 @@ class FrameAverageSolver(object):
         self.num_proc = num_proc
         self._init_train_fn()
         self._init_test_fn()
+        self.Q_in = [Queue()] * self.num_proc
+        self.Q_out = [Queue()] * self.num_proc
 
     def _init_train_fn(self):
         """
@@ -86,6 +88,23 @@ class FrameAverageSolver(object):
 
         self.test_function = theano.function([input_var, output_var], [loss, predictions], updates=updates)
 
+    def _compute_loss_grad_exp(self, q_in, q_out):
+        """
+        Get the loss and gradient for this part of the mini-batch.
+        """
+        while True:
+            if not q_in.empty():
+                batch_submask = q_in.get()
+                if type(batch_submask) is str and batch_submask=='quit':
+                    break
+
+                X_batch = self.X_train[batch_submask]
+                y_batch = self.y_train[batch_submask]
+                loss, grads = self.model.loss(X_batch, y_batch)
+
+                q_out.put([len(batch_submask), loss, grads])
+        return
+
     def train(self):
         """
         Train the model for num_epochs with batches of size batch_size
@@ -101,13 +120,12 @@ class FrameAverageSolver(object):
         if num_train < self.batch_size:
             self.batch_size = num_train
 
-        self.Q_in  = [Queue() for i in range(self.num_proc)]
-        self.Q_out = [Queue() for i in range(self.num_proc)]
 
         Procs = {}
         for i in range(self.num_proc):
             Procs[i] = Process(target=self._compute_loss_grad_exp, args=(self.Q_in[i], self.Q_out[i]))
             Procs[i].start()
+
         iters = 0
         for i in xrange(self.num_epochs):
             loss = 0
