@@ -5,6 +5,7 @@ import theano
 from theano import tensor as T
 import numpy as np
 import datetime
+import math
 from multiprocessing import Queue, Process
 
 tensor5 = T.TensorType('floatX', (False,) * 5)
@@ -56,27 +57,20 @@ class FrameAverageSolver(object):
         """
         input_var = tensor5('input')
         output_var = T.lvector('output')
-        # Compute losses by iterating over the input variable (a 5D tensor where each "row" represents a clip that
-        # has some number of frames.
-        [losses, predictions], updates = theano.scan(fn=lambda X_clip, output: self.model.clip_loss(X_clip, output),
-                                                     outputs_info=None,
-                                                     sequences=[input_var, output_var])
-
-        loss = losses.mean()
+        loss = T.dscalar()
         output_layer = self.model.output_layer()
         # Get params for output layer and update using Adam
         params = output_layer.get_params(trainable=True)
-        adam_update = lasagne.updates.adam(loss, params, learning_rate=self.output_lr)
+        updates = lasagne.updates.adam(loss, params, learning_rate=self.output_lr)
 
         # Combine update expressions returned by theano.scan() with update expressions returned from the adam update
-        updates.update(adam_update)
         for layer_key in self.tuning_layers:
             layer = self.model.layer(layer_key)
             layer_params = layer.get_params(trainable=True)
             layer_adam_updates = lasagne.updates.adam(loss, layer_params, learning_rate=self.tuning_lr)
             updates.update(layer_adam_updates)
-        # todo update layers that need to be finetuned
-        self.train_function = theano.function([input_var, output_var], [loss, predictions], updates=updates)
+
+        self.train_function = theano.function([input_var, output_var, loss], updates=updates)
 
     def _init_test_fn(self):
         input_var = tensor5('test_input')
@@ -100,9 +94,9 @@ class FrameAverageSolver(object):
 
                 X_batch = self.X_train[batch_submask]
                 y_batch = self.y_train[batch_submask]
-                loss, grads = self.model.loss(X_batch, y_batch)
+                loss, predictions = self.model.clip_loss(X_batch, y_batch)
 
-                q_out.put([len(batch_submask), loss, grads])
+                q_out.put([len(batch_submask), loss, predictions])
         return
 
     def train(self):
@@ -126,14 +120,33 @@ class FrameAverageSolver(object):
             Procs[i] = Process(target=self._compute_loss_grad_exp, args=(self.Q_in[i], self.Q_out[i]))
             Procs[i].start()
 
+        block_size = 1.0*self.batch_size/self.num_proc
         iters = 0
         for i in xrange(self.num_epochs):
-            loss = 0
             acc = 0
-            for X_batch, y_batch in self.iterate_minibatches():
+            loss = 0
+            for batch_mask in self.iterate_minibatches():
+                loss = 0
+                for i in range(self.num_proc):
+                    mask_start = math.ceil(i*block_size)
+                    mask_end = min(num_train, math.ceil((i+1)*block_size))
+                    batch_submask = batch_mask[mask_start:mask_end]
+                    self.Q_in[i].put(batch_submask)
+
+                # Multi-Process Collecting
+                count = 0
+                all_predictions = []
+                while count!=self.num_proc:
+                    for i in range(self.num_proc):
+                        if not self.Q_out[i].empty():
+                            count +=1
+                            num, subloss, batch_predictions = self.Q_out[i].get() # not to confuse with technical "subgradient"
+                            loss += num*subloss
+                            all_predictions.extend(batch_predictions)
                 iters += 1
-                loss, predictions = self.train_function(X_batch, y_batch)
-                acc = self._compute_accuracy(predictions, y_batch)
+
+                self.train_function(self.train_X[batch_mask], self.train_y[batch_mask], loss)
+                acc = self._compute_accuracy(all_predictions, self.train_y[batch_mask])
             print "(%d/%d) Training loss: %f\tTraining accuracy:%2.2f" % (iters, num_iterations, loss, acc)
 
             # check validation accuracy every 5 epochs
@@ -157,5 +170,5 @@ class FrameAverageSolver(object):
         ctr = 0
         while ctr < self.train_y.shape[0]:
             end = min(ctr + self.batch_size, self.train_X.shape[0])
-            yield self.train_X[ctr:end], self.train_y[ctr:end]
+            yield np.arange(ctr, end)
             ctr += self.batch_size
