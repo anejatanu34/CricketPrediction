@@ -93,8 +93,8 @@ def split_data(X, y, raw_X, train_ratio=0.6, test_ratio=0.2, val_ratio=0.2):
     N = X.shape[0]
     shuffled_idx = np.random.shuffle(xrange(N))
 
-    num_train = train_ratio * N
-    num_val = val_ratio * N
+    num_train = max(train_ratio * N, 1)
+    num_val = max(val_ratio * N, 1)
 
     train_X = X[shuffled_idx[0:num_train]]
     raw_train_X = raw_X[shuffled_idx[0:num_train]]
