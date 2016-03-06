@@ -55,8 +55,6 @@ class FrameAverageSolver(object):
         """
         Initialize Theano function to compute loss and update weights using Adam for a single epoch and minibatch.
         """
-        input_var = tensor5('input')
-        output_var = T.lvector('output')
         loss = T.dscalar()
         output_layer = self.model.output_layer()
         # Get params for output layer and update using Adam
@@ -70,7 +68,7 @@ class FrameAverageSolver(object):
             layer_adam_updates = lasagne.updates.adam(loss, layer_params, learning_rate=self.tuning_lr)
             updates.update(layer_adam_updates)
 
-        self.train_function = theano.function([input_var, output_var, loss], updates=updates)
+        self.train_function = theano.function([loss], updates=updates)
 
     def _init_test_fn(self):
         input_var = tensor5('test_input')
@@ -96,7 +94,7 @@ class FrameAverageSolver(object):
                 y_batch = self.y_train[batch_submask]
                 loss, predictions = self.model.clip_loss(X_batch, y_batch)
 
-                q_out.put([len(batch_submask), loss, predictions])
+                q_out.put([batch_submask, loss, predictions])
         return
 
     def train(self):
@@ -135,26 +133,29 @@ class FrameAverageSolver(object):
 
                 # Multi-Process Collecting
                 count = 0
-                all_predictions = []
+                all_predictions = np.zeros_like(self.train_y[batch_mask])
                 while count!=self.num_proc:
                     for i in range(self.num_proc):
                         if not self.Q_out[i].empty():
                             count +=1
-                            num, subloss, batch_predictions = self.Q_out[i].get() # not to confuse with technical "subgradient"
-                            loss += num*subloss
-                            all_predictions.extend(batch_predictions)
+                            batch_submask, subloss, batch_predictions = self.Q_out[i].get() # not to confuse with technical "subgradient"
+                            loss += len(batch_submask) * subloss
+                            all_predictions[batch_submask] = batch_predictions
                 iters += 1
 
-                self.train_function(self.train_X[batch_mask], self.train_y[batch_mask], loss)
                 acc = self._compute_accuracy(all_predictions, self.train_y[batch_mask])
-            print "(%d/%d) Training loss: %f\tTraining accuracy:%2.2f" % (iters, num_iterations, loss, acc)
+                print "(%d/%d) Training loss: %f\tTraining accuracy:%2.2f" % (iters, num_iterations, loss, acc)
+
+                self.train_function(self.train_X[batch_mask], self.train_y[batch_mask], loss)
+
+
 
             # check validation accuracy every 5 epochs
             # todo maybe change this to every X epochs depending on # of epochs, or maybe make this parameterizable
             if i % 5 == 0:
-                test_loss, test_predictions = self.test_function(self.val_X, self.val_y)
-                test_acc = self._compute_accuracy(test_predictions, self.val_y)
-                print "\tTest loss: %f\tTest accuracy:%2.2f" % (test_loss, test_acc)
+                val_loss, test_predictions = self.test_function(self.val_X, self.val_y)
+                val_acc = self._compute_accuracy(test_predictions, self.val_y)
+                print "\tTest loss: %f\tTest accuracy:%2.2f" % (val_loss, val_acc)
 
         end = datetime.datetime.now()
         print "Training took %d seconds" % (end-start).seconds
