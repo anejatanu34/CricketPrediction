@@ -6,12 +6,11 @@ import re
 import json
 from preprocess import preprocess_frames
 import matplotlib.pyplot as plt
-import sklearn.cross_validation
 
 dir_pattern = r'ball([0-9]+)'
 
 
-def read_frames(dirname, p=1.0, max_frames=100):
+def read_frames(dirname, max_frames, p=1.0):
     frames = []
     i = 1
     while True:
@@ -25,9 +24,15 @@ def read_frames(dirname, p=1.0, max_frames=100):
 
         i += 1
 
+    if len(frames) > max_frames:
+        frames = np.array(frames)
+        indexes = sorted(np.random.choice(np.arange(len(frames)), max_frames, replace=False))
+        frames = frames[indexes]
+        return frames
+
     while len(frames) < max_frames and max_frames > 0:
         frames.append(np.zeros_like(frames[0]))
-    return frames
+    return np.array(frames)
 
 
 def read_cricket_labels(innings1_file, innings2_file):
@@ -51,7 +56,7 @@ def read_cricket_labels(innings1_file, innings2_file):
 
 
 # todo add support to read in more class types if needed
-def read_dataset(json_videos, sample_probability=1.0, max_items=-1, max_frames=100, **kwargs):
+def read_dataset(json_videos, sample_probability=1.0, max_items=-1, max_frames=60, **kwargs):
     videos = json.load(open(json_videos, 'r'), encoding='utf-8')
     X = []
     raw_X = []
