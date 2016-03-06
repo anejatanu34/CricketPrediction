@@ -50,29 +50,22 @@ class FrameAverageSolver(object):
         """
         Initialize Theano function to compute loss and update weights using Adam for a single epoch and minibatch.
         """
-        input_var = tensor5('input')
-        output_var = T.lvector('output')
+        loss = T.dscalar('loss')
         # Compute losses by iterating over the input variable (a 5D tensor where each "row" represents a clip that
         # has some number of frames.
-        [losses, predictions], updates = theano.scan(fn=lambda X_clip, output: self.model.clip_loss(X_clip, output),
-                                                     outputs_info=None,
-                                                     sequences=[input_var, output_var])
-
-        loss = losses.mean()
         output_layer = self.model.output_layer()
         # Get params for output layer and update using Adam
         params = output_layer.get_params(trainable=True)
-        adam_update = lasagne.updates.adam(loss, params, learning_rate=self.output_lr)
+        updates = lasagne.updates.adam(loss, params, learning_rate=self.output_lr)
 
         # Combine update expressions returned by theano.scan() with update expressions returned from the adam update
-        updates.update(adam_update)
         for layer_key in self.tuning_layers:
             layer = self.model.layer(layer_key)
             layer_params = layer.get_params(trainable=True)
             layer_adam_updates = lasagne.updates.adam(loss, layer_params, learning_rate=self.tuning_lr)
             updates.update(layer_adam_updates)
         # todo update layers that need to be finetuned
-        self.train_function = theano.function([input_var, output_var], [loss, predictions], updates=updates)
+        self.update = theano.function([loss], updates=updates)
 
     def _init_test_fn(self):
         input_var = tensor5('test_input')
@@ -100,7 +93,8 @@ class FrameAverageSolver(object):
             acc = 0
             for X_batch, y_batch in self.iterate_minibatches():
                 i += 1
-                loss, predictions = self.train_function(X_batch, y_batch)
+                loss, predictions = self.model.loss(X_batch, y_batch)
+                self.update(X_batch, y_batch, loss)
                 acc = self._compute_accuracy(predictions, y_batch)
             print "(%d/%d) Training loss: %f\tTraining accuracy:%2.2f" % (iters, num_iterations, loss, acc)
 

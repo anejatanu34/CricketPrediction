@@ -5,6 +5,7 @@ import pickle
 import lasagne
 import numpy as np
 import theano.tensor as T
+import itertools
 
 
 class Outcome(object):
@@ -116,5 +117,12 @@ class AverageFrameModel(Model):
         loss = lasagne.objectives.categorical_crossentropy(prediction_scores, target)
         return loss.mean(), prediction
 
-    def predict(self, frames):
-        pass
+    def loss(self, clips, targets):
+        losses = []
+        predictions = []
+        for (X_clip, y_clip) in itertools.izip(clips, targets):
+            loss, pred = self.clip_loss(X_clip, y_clip)
+            losses.append(loss)
+            predictions.append(pred)
+        return np.array(losses).mean(), predictions
+
