@@ -2,6 +2,8 @@ __author__ = 'anushabala'
 import lasagne
 import theano
 from theano import tensor as T
+import numpy as np
+import datetime
 
 tensor5 = T.TensorType('float64', (False,) * 5)
 
@@ -34,12 +36,11 @@ class FrameAverageSolver(object):
         output_var = T.lvector('output')
         # Compute losses by iterating over the input variable (a 5D tensor where each "row" represents a clip that
         # has some number of frames.
-        losses, updates = theano.scan(fn=lambda X_clip, output: self.model.clip_loss(X_clip, output),
-                                      outputs_info=None,
-                                      sequences=[input_var, output_var])
+        [losses, predictions], updates = theano.scan(fn=lambda X_clip, output: self.model.clip_loss(X_clip, output),
+                                                     outputs_info=None,
+                                                     sequences=[input_var, output_var])
 
         loss = losses.mean()
-        # todo compute accuracy
         output_layer = self.model.output_layer()
         # Get params for output layer and update using Adam
         params = output_layer.get_params(trainable=True)
@@ -50,19 +51,50 @@ class FrameAverageSolver(object):
             updates[key] = value
 
         # todo update layers that need to be finetuned
-        self.train_function = theano.function([input_var, output_var], loss, updates=updates)
+        self.train_function = theano.function([input_var, output_var], [loss, predictions], updates=updates)
+
+    def _init_test_fn(self):
+        input_var = tensor5('test_input')
+        output_var = T.lvector('test_output')
+        [losses, predictions], updates = theano.scan(fn=lambda X_clip, output: self.model.clip_loss(X_clip, output, mode='test'),
+                                                     outputs_info=None,
+                                                     sequences=[input_var, output_var])
+        loss = losses.mean()
+
+        self.test_function = theano.function([input_var, output_var], [loss, predictions], updates=updates)
 
     def train(self):
         """
         Train the model for num_epochs with batches of size batch_size
         :return:
         """
+        print "Started model training"
+        start = datetime.datetime.now()
+        iterations_per_epoch = max(self.train_y.shape[0] / self.batch_size, 1)
+        num_iterations = iterations_per_epoch * self.num_epochs
+
+        iters = 0
         for i in xrange(self.num_epochs):
-            print "Training epoch %d" % i
+            loss = 0
+            acc = 0
             for X_batch, y_batch in self.iterate_minibatches():
-                print "Training batch 1"
-                loss = self.train_function(X_batch, y_batch)
-                print "Training loss: %f" % loss
+                i += 1
+                loss, predictions = self.train_function(X_batch, y_batch)
+                acc = self._compute_accuracy(predictions, y_batch)
+            print "(%d/%d) Training loss: %f\tTraining accuracy:%2.2f" % (iters, num_iterations, loss, acc)
+
+            # check validation accuracy every 5 epochs
+            # todo maybe change this to every X epochs depending on # of epochs, or maybe make this parameterizable
+            if i % 5 == 0:
+                test_loss, test_predictions = self.test_function(self.val_X, self.val_y)
+                test_acc = self._compute_accuracy(test_predictions, self.val_y)
+                print "\tTest loss: %f\tTest accuracy:%2.2f" % (test_loss, test_acc)
+
+        end = datetime.datetime.now()
+        print "Training took %d seconds" % (end-start).seconds
+
+    def _compute_accuracy(self, predicted_y, true_y):
+        return np.array(predicted_y == true_y).mean()
 
     def iterate_minibatches(self):
         """

@@ -4,7 +4,7 @@ from .vgg16 import build_model, get_ordered_layers
 import pickle
 import lasagne
 import numpy as np
-import theano.tensor
+import theano.tensor as T
 
 
 class Outcome(object):
@@ -109,7 +109,12 @@ class AverageFrameModel(Model):
         :param mode: 'train' or 'test' (to determine whether to use dropout or not
         :return: Mean loss for every frame
         """
-        target = theano.tensor.tile(y, frames.shape[0])
-        prediction = self.get_output(frames, mode=mode)
-        loss = lasagne.objectives.categorical_crossentropy(prediction, target)
-        return loss.mean()
+        target = T.tile(y, frames.shape[0])
+        prediction_scores = self.get_output(frames, mode=mode)
+        prediction_counts = T.bincount(T.argmax(prediction_scores, axis=1))
+        prediction = T.argmax(prediction_counts)
+        loss = lasagne.objectives.categorical_crossentropy(prediction_scores, target)
+        return loss.mean(), prediction
+
+    def predict(self, frames):
+        pass
