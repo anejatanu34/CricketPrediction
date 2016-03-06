@@ -77,8 +77,8 @@ def read_dataset(json_videos, sample_probability=1.0, max_items=-1, max_frames=6
 
                 if ball_num not in illegal_balls:
                     frames = read_frames(os.path.join(clips_dir, ball_dir), p=sample_probability, max_frames=max_frames)
-                    raw_frames, frames = preprocess_frames(frames, **kwargs)
-                    raw_X.append(raw_frames)
+                    _, frames = preprocess_frames(frames, **kwargs)
+                    # raw_X.append(raw_frames)
                     X.append(frames)
                     y.append(labels[ball_num - 1])
                     ctr += 1
@@ -87,13 +87,13 @@ def read_dataset(json_videos, sample_probability=1.0, max_items=-1, max_frames=6
             if ctr % 25 == 0 and ctr > 0:
                 print "Finished loading %d balls" % ctr
 
-    return split_data(np.array(X), np.array(y).astype(np.int32), np.array(raw_X))
+    return split_data(np.array(X), np.array(y).astype(np.int32))
 
 
 # todo this is just temporary, for testing our code!!!
 # before running real experiments we should split our full dataset completely into train,
 # test, and val ONCE and always use the same splits for all experiments
-def split_data(X, y, raw_X, train_ratio=0.6, test_ratio=0.2, val_ratio=0.2):
+def split_data(X, y, train_ratio=0.6, test_ratio=0.2, val_ratio=0.2):
     N = X.shape[0]
     shuffled_idx = np.arange(N)
     np.random.shuffle(shuffled_idx)
@@ -102,25 +102,25 @@ def split_data(X, y, raw_X, train_ratio=0.6, test_ratio=0.2, val_ratio=0.2):
     num_val = max(val_ratio * N, 1)
 
     train_X = X[shuffled_idx[0:num_train]]
-    raw_train_X = raw_X[shuffled_idx[0:num_train]]
+    # raw_train_X = raw_X[shuffled_idx[0:num_train]]
     train_y = y[shuffled_idx[0:num_train]]
 
     val_X = X[shuffled_idx[num_train:num_train+num_val]]
-    raw_val_X = raw_X[shuffled_idx[num_train:num_train+num_val]]
+    # raw_val_X = raw_X[shuffled_idx[num_train:num_train+num_val]]
     val_y = y[shuffled_idx[num_train:num_train+num_val]]
 
     test_X = X[shuffled_idx[num_train+num_val:]]
-    raw_test_X = raw_X[shuffled_idx[num_train+num_val:]]
+    # raw_test_X = raw_X[shuffled_idx[num_train+num_val:]]
     test_y = X[shuffled_idx[num_train+num_val:]]
 
     data = {'train_X': train_X,
-            'raw_train_X': raw_train_X,
+            # 'raw_train_X': raw_train_X,
             'train_y': train_y,
             'test_X': test_X,
-            'raw_test_X': raw_test_X,
+            # 'raw_test_X': raw_test_X,
             'test_y': test_y,
             'val_X': val_X,
-            'raw_val_X': raw_val_X,
+            # 'raw_val_X': raw_val_X,
             'val_y': val_y}
 
     return data
