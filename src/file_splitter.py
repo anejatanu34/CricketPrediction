@@ -4,8 +4,10 @@ import cv2
 import os
 from utils import write_frames
 import shutil
+from fabric.api import *
 
 DEFAULT_SKIP_FACTOR = 2
+REMOTE_DIR_PREFIX = '/afs/.ir/users/a/n/anusha28/projects/vision/data/'
 
 
 def playback_help():
@@ -21,6 +23,12 @@ def main(args):
     capture = cv2.VideoCapture(args.vid)
     out_dir = args.out
     ball_ctr = max(args.start_ball, 0)
+    remote_dir = os.path.join(REMOTE_DIR_PREFIX, args.match_suffix)
+    if args.upload:
+        env.host_string = 'jamie.stanford.edu'
+        env.user = 'anusha'
+        env.password= 'BakedByMe_2807'
+
     if not os.path.exists(out_dir):
         os.makedirs(out_dir)
     else:
@@ -72,7 +80,11 @@ def main(args):
                     if os.path.exists(ball_dir):
                         shutil.rmtree(ball_dir)
                         os.makedirs(ball_dir)
-                    write_frames(frames, ball_dir)
+                    if args.upload:
+                        remote_ball_dir = os.path.join(remote_dir, 'ball%d' % ball_ctr)
+                        write_frames(frames, ball_dir, remote_upload=True, remote_dir=remote_ball_dir)
+                    else:
+                        write_frames(frames, ball_dir)
                 frames = []
             recording = not recording
             if recording:
@@ -85,7 +97,11 @@ def main(args):
                     if os.path.exists(ball_dir):
                         shutil.rmtree(ball_dir)
                         os.makedirs(ball_dir)
-                    write_frames(frames, ball_dir)
+                    if args.upload:
+                        remote_ball_dir = os.path.join(remote_dir, 'ball%d' % ball_ctr)
+                        write_frames(frames, ball_dir, remote_upload=True, remote_dir=remote_ball_dir)
+                    else:
+                        write_frames(frames, ball_dir)
             print "Last ball written: %d\tLast frame recorded: %d\tLast frame read: %d" % (ball_ctr, last_recorded_frame, frame_ctr)
             break
         elif key_code == ord('p'):
@@ -117,5 +133,7 @@ if __name__ == "__main__":
                              'defaults to 0 (first ball in video is first ball of match)')
     parser.add_argument('--display_size', type=int, default=300, help='Size of video to display')
     parser.add_argument('--skip_factor', type=int, default=DEFAULT_SKIP_FACTOR, help='Number of frames to skip while playing video (by default set to 2, i.e. every other frame is played)')
+    parser.add_argument('--upload', action='store_true')
+    parser.add_argument('--match_suffix', required=True)
     clargs = parser.parse_args()
     main(clargs)
