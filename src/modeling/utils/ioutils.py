@@ -54,7 +54,6 @@ def read_cricket_labels(innings1_file, innings2_file):
 
     return labels, illegal_balls
 
-
 # todo add support to read in more class types if needed
 def read_dataset(json_videos, sample_probability=1.0, max_items=-1, max_frames=60, **kwargs):
     videos = json.load(open(json_videos, 'r'), encoding='utf-8')
@@ -81,6 +80,7 @@ def read_dataset(json_videos, sample_probability=1.0, max_items=-1, max_frames=6
                     raw_X.append(raw_frames)
                     X.append(frames)
                     y.append(labels[ball_num - 1])
+                    del frames
                     ctr += 1
             if 0 < max_items == ctr:
                 break
@@ -122,5 +122,5 @@ def split_data(X, y, raw_X, train_ratio=0.6, test_ratio=0.2, val_ratio=0.2):
             'val_X': val_X,
             'raw_val_X': raw_val_X,
             'val_y': val_y}
-
+    del X
     return data

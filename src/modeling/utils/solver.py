@@ -5,7 +5,7 @@ from theano import tensor as T
 import numpy as np
 import datetime
 
-tensor5 = T.TensorType('float64', (False,) * 5)
+tensor5 = T.TensorType('floatX', (False,) * 5)
 
 # todo implement masks
 
@@ -42,6 +42,9 @@ class FrameAverageSolver(object):
         self.num_epochs = num_epochs
         self.batch_size = batch_size
         self.tuning_layers = tuning_layers
+        iterations_per_epoch = max(self.train_y.shape[0] / self.batch_size, 1)
+        num_iterations = iterations_per_epoch * self.num_epochs
+        print num_iterations
 
         self._init_train_fn()
         self._init_test_fn()
@@ -99,7 +102,7 @@ class FrameAverageSolver(object):
             loss = 0
             acc = 0
             for X_batch, y_batch in self.iterate_minibatches():
-                i += 1
+                iters += 1
                 loss, predictions = self.train_function(X_batch, y_batch)
                 acc = self._compute_accuracy(predictions, y_batch)
             print "(%d/%d) Training loss: %f\tTraining accuracy:%2.2f" % (iters, num_iterations, loss, acc)
