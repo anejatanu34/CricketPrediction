@@ -73,7 +73,6 @@ def read_dataset(json_videos, sample_probability=1.0, max_items=-1, max_frames=1
                 if ball_num not in illegal_balls:
                     frames = read_frames(os.path.join(clips_dir, ball_dir), p=sample_probability, max_frames=max_frames)
                     raw_frames, frames = preprocess_frames(frames, **kwargs)
-                    print len(frames)
                     raw_X.append(raw_frames)
                     X.append(frames)
                     y.append(labels[ball_num - 1])
@@ -91,7 +90,8 @@ def read_dataset(json_videos, sample_probability=1.0, max_items=-1, max_frames=1
 # test, and val ONCE and always use the same splits for all experiments
 def split_data(X, y, raw_X, train_ratio=0.6, test_ratio=0.2, val_ratio=0.2):
     N = X.shape[0]
-    shuffled_idx = np.random.shuffle(xrange(N))
+    shuffled_idx = np.arange(N)
+    np.random.shuffle(shuffled_idx)
 
     num_train = max(train_ratio * N, 1)
     num_val = max(val_ratio * N, 1)

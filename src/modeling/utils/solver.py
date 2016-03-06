@@ -54,12 +54,10 @@ class FrameAverageSolver(object):
         output_var = T.lvector('output')
         # Compute losses by iterating over the input variable (a 5D tensor where each "row" represents a clip that
         # has some number of frames.
-        updates = {}
-        [losses, predictions], scan_updates = theano.scan(fn=lambda X_clip, output: self.model.clip_loss(X_clip, output),
+        [losses, predictions], updates = theano.scan(fn=lambda X_clip, output: self.model.clip_loss(X_clip, output),
                                                      outputs_info=None,
                                                      sequences=[input_var, output_var])
 
-        updates.update(scan_updates)
         loss = losses.mean()
         output_layer = self.model.output_layer()
         # Get params for output layer and update using Adam
