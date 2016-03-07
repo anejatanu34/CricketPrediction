@@ -68,7 +68,7 @@ def main(args):
             frames.append(frame_cropped)
 
         cv2.imshow('video', display_frame)
-        key = cv2.waitKey(30)
+        key = cv2.waitKey(20)
         key_code = key & 0xFF
 
         if key_code == ord('s'):
@@ -90,6 +90,13 @@ def main(args):
             recording = not recording
             if recording:
                 print "Started recording at frame: %d" % frame_ctr
+        elif key_code == ord('c'):
+            if recording:
+                print "Clearing current recording"
+                frames = []
+                recording = False
+            else:
+                print "No recording to clear"
         elif key_code == ord('x'):
             if recording:
                 ball_ctr += 1
@@ -117,9 +124,10 @@ def main(args):
                 skip_factor *= 2
             print "Fast forwarding video (displaying every %d frames). Press 'd' to resume default speed." % skip_factor
         elif key_code == ord('d'):
-            print "Playing video at default speed (displaying every %d frames)." % args.skip_factor
-            fast_fwd = False
-            skip_factor = args.skip_factor
+            if fast_fwd:
+                print "Playing video at default speed (displaying every %d frames)." % args.skip_factor
+                fast_fwd = False
+                skip_factor = args.skip_factor
         elif key_code == ord('h'):
             playback_help()
 
