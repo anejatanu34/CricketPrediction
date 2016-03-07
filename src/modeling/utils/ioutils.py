@@ -34,18 +34,24 @@ def sample_temporal_frames(frames, max_frames):
     if len(frames) < max_frames:
         while len(frames) < max_frames:
             frames.append(np.zeros_like(frames[0]))
-            return np.array(frames)
+        return np.array(frames)
 
     window = len(frames)/ max_frames
     selected = []
     indexes = np.arange(len(frames))
     start = 0
-    while start < len(frames) - 1  and len(selected) < max_frames:
+    while start < len(frames) - 1 and len(selected) < max_frames:
         end = min(start + window, len(frames))
         selected.append(np.random.choice(indexes[start:end]))
         start = end
     frames = np.array(frames)
     frames = frames[selected]
+    if len(selected) < max_frames:
+        padded = list(frames)
+        while len(padded) < max_frames:
+            padded.append(np.zeros_like(padded[0]))
+        return np.array(padded)
+
     return frames
 
 

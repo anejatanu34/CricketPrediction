@@ -111,8 +111,9 @@ class AverageFrameModel(Model):
         """
         target = T.tile(y, frames.shape[0])
         prediction_scores = self.get_output(frames, mode=mode)
-        prediction_counts = T.bincount(T.argmax(prediction_scores, axis=1))
-        prediction = T.argmax(prediction_counts)
+        mean_score = prediction_scores.mean()
+        # prediction_counts = T.bincount(T.argmax(prediction_scores, axis=1))
+        prediction = T.argmax(mean_score)
         loss = lasagne.objectives.categorical_crossentropy(prediction_scores, target)
         return loss.mean(), prediction
 

@@ -17,7 +17,7 @@ class FrameAverageSolver(object):
     since the training function and loss function calls will probably stay the same?
     todo maybe create a generic Solver class instead?
     """
-    def __init__(self, model, train_X, train_y, val_X, val_y, output_lr=1e-1, tune_lr=1e-3, num_epochs=1,
+    def __init__(self, model, train_X, train_y, val_X, val_y, output_lr=1e-1, tune_lr=1e-3, lr_decay=0.95, num_epochs=1,
                  batch_size=25, tuning_layers=[]):
         """
         Create a new FrameAverageSolver instance
@@ -39,6 +39,7 @@ class FrameAverageSolver(object):
         self.val_y = val_y
         self.output_lr = output_lr
         self.tuning_lr = tune_lr
+        self.lr_decay = lr_decay
         self.num_epochs = num_epochs
         self.batch_size = batch_size
         self.tuning_layers = tuning_layers
@@ -54,12 +55,13 @@ class FrameAverageSolver(object):
         output_var = T.lvector('output')
         # Compute losses by iterating over the input variable (a 5D tensor where each "row" represents a clip that
         # has some number of frames.
-        [losses, predictions], updates = theano.scan(fn=lambda X_clip, output: self.model.clip_loss(X_clip, output),
+        [losses, predictions], updates = theano.scan(fn=lambda X_clip, output: self.model.clip_loss(X_clip, output, mode='test'),
                                                      outputs_info=None,
                                                      sequences=[input_var, output_var])
 
         loss = losses.mean()
         output_layer = self.model.layer('fc8')
+
         # Get params for output layer and update using Adam
         params = output_layer.get_params(trainable=True)
         adam_update = lasagne.updates.adam(loss, params, learning_rate=self.output_lr)
@@ -103,6 +105,12 @@ class FrameAverageSolver(object):
                 loss, predictions = self.train_function(X_batch, y_batch)
                 acc = self._compute_accuracy(predictions, y_batch)
             print "(%d/%d) Training loss: %f\tTraining accuracy:%2.2f" % (iters, num_iterations, loss, acc)
+
+            if 0 < self.lr_decay < 1:
+                self.output_lr *= self.lr_decay
+                self.tuning_lr *= self.lr_decay
+                print "Decayed output layer learning rate to %f" % self.output_lr
+                print "Decayed tuning layer learning rate to %f" % self.tuning_lr
 
             if i % 5 == 0:
                 val_loss, val_predictions = self.test_function(self.val_X, self.val_y)
