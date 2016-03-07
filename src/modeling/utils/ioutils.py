@@ -31,15 +31,19 @@ def read_frames(dirname, max_frames, p=0.5, mode='sample', **kwargs):
 
 
 def sample_temporal_frames(frames, max_frames):
-    window = np.ceil(len(frames)/ float(max_frames))
+    if len(frames) < max_frames:
+        while len(frames) < max_frames:
+            frames.append(np.zeros_like(frames[0]))
+            return np.array(frames)
+
+    window = len(frames)/ max_frames
     selected = []
     indexes = np.arange(len(frames))
     start = 0
-    while start < len(frames):
+    while start < len(frames) - 1  and len(selected) < max_frames:
         end = min(start + window, len(frames))
         selected.append(np.random.choice(indexes[start:end]))
         start = end
-
     frames = np.array(frames)
     frames = frames[selected]
     return frames
