@@ -21,7 +21,8 @@ def main(args):
                               tuning_layers=tuning_layers)
 
     start = datetime.datetime.now()
-    data = read_dataset(dataset_json, sample_probability=0.5, max_items=max_items, max_frames=max_frames, mean_value=model.mean_bgr)
+    data = read_dataset(dataset_json, sample_probability=0.5, mode='temporal',
+                        max_items=max_items, max_frames=max_frames, mean_value=model.mean_bgr)
     print data["train_X"].shape
     end = datetime.datetime.now()
     print "Read data in %d seconds" % (end-start).seconds

@@ -10,7 +10,7 @@ import matplotlib.pyplot as plt
 dir_pattern = r'ball([0-9]+)'
 
 
-def read_frames(dirname, max_frames, p=1.0):
+def read_frames(dirname, max_frames, p=0.5, mode='sample', **kwargs):
     frames = []
     i = 1
     while True:
@@ -23,6 +23,30 @@ def read_frames(dirname, max_frames, p=1.0):
             break
 
         i += 1
+
+    if mode == 'sample':
+        return sample_frames(frames, max_frames)
+    if mode == 'temporal':
+        return sample_temporal_frames(frames, **kwargs)
+
+
+def sample_temporal_frames(frames, **kwargs):
+    window = kwargs.get('window', 5)
+    window = min(window, len(frames)/2)
+    selected = []
+    indexes = np.arange(len(frames))
+    middle = len(frames)/2
+    selected.append(np.random.choice(indexes[0:window]))
+    selected.append(np.random.choice(indexes[middle - window + 1: middle + window]))
+    selected.append(np.random.choice(indexes[len(frames)-window:]))
+
+    print selected
+    frames = np.array(frames)
+    frames = frames[selected]
+    return frames
+
+
+def sample_frames(frames, max_frames):
 
     if len(frames) > max_frames:
         frames = np.array(frames)
@@ -54,8 +78,9 @@ def read_cricket_labels(innings1_file, innings2_file):
 
     return labels, illegal_balls
 
+
 # todo add support to read in more class types if needed
-def read_dataset(json_videos, sample_probability=1.0, max_items=-1, max_frames=60, **kwargs):
+def read_dataset(json_videos, sample_probability=1.0, max_items=-1, max_frames=60, mode='sample', **kwargs):
     videos = json.load(open(json_videos, 'r'), encoding='utf-8')
     X = []
     raw_X = []
@@ -79,7 +104,8 @@ def read_dataset(json_videos, sample_probability=1.0, max_items=-1, max_frames=6
                 ball_num = int(match.group(1))
 
                 if ball_num not in illegal_balls:
-                    frames = read_frames(os.path.join(clips_dir, ball_dir), p=sample_probability, max_frames=max_frames)
+                    frames = read_frames(os.path.join(clips_dir, ball_dir), p=sample_probability,
+                                         mode=mode, max_frames=max_frames)
                     raw_frames, frames = preprocess_frames(frames, **kwargs)
                     raw_X.append(raw_frames)
                     X.append(frames)
