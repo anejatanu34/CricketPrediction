@@ -31,8 +31,8 @@ def main(args):
                                 data["train_X"], data["train_y"],
                                 val_X=data["val_X"], val_y=data["val_y"],
                                 num_epochs=5,
-                                batch_size=2,
-                                output_lr=1e-6)
+                                batch_size=10,
+                                output_lr=1e-8)
     solver.train()
 
 if __name__ == "__main__":

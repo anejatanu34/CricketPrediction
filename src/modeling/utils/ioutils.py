@@ -27,20 +27,19 @@ def read_frames(dirname, max_frames, p=0.5, mode='sample', **kwargs):
     if mode == 'sample':
         return sample_frames(frames, max_frames)
     if mode == 'temporal':
-        return sample_temporal_frames(frames, **kwargs)
+        return sample_temporal_frames(frames, max_frames)
 
 
-def sample_temporal_frames(frames, **kwargs):
-    window = kwargs.get('window', 5)
-    window = min(window, len(frames)/2)
+def sample_temporal_frames(frames, max_frames):
+    window = np.ceil(len(frames)/ float(max_frames))
     selected = []
     indexes = np.arange(len(frames))
-    middle = len(frames)/2
-    selected.append(np.random.choice(indexes[0:window]))
-    selected.append(np.random.choice(indexes[middle - window + 1: middle + window]))
-    selected.append(np.random.choice(indexes[len(frames)-window:]))
+    start = 0
+    while start < len(frames):
+        end = min(start + window, len(frames))
+        selected.append(np.random.choice(indexes[start:end]))
+        start = end
 
-    print selected
     frames = np.array(frames)
     frames = frames[selected]
     return frames
