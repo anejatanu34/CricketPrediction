@@ -109,13 +109,15 @@ class AverageFrameModel(Model):
         :param mode: 'train' or 'test' (to determine whether to use dropout or not
         :return: Mean loss for every frame
         """
-        target = T.tile(y, frames.shape[0])
+        # target = T.tile(y, frames.shape[0])
         prediction_scores = self.get_output(frames, mode=mode)
-        mean_score = prediction_scores.mean()
+        mean_score = prediction_scores.mean(axis=0)
+        mean_score = mean_score.dimshuffle('x', 0)
         # prediction_counts = T.bincount(T.argmax(prediction_scores, axis=1))
         prediction = T.argmax(mean_score)
-        loss = lasagne.objectives.categorical_crossentropy(prediction_scores, target)
-        return loss.mean(), prediction
+        target = y.dimshuffle('x').dimshuffle(0, 'x')
+        loss = lasagne.objectives.categorical_crossentropy(mean_score, target)
+        return loss, prediction
 
     def predict(self, frames):
         pass

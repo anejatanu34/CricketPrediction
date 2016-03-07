@@ -6,7 +6,7 @@ from utils.solver import FrameAverageSolver
 import datetime
 
 DEFAULT_MODEL_PATH = 'vgg16.pkl'
-
+DEFAULT_BATCH_SIZE = 15
 
 def main(args):
     dataset_json = args.json
@@ -26,13 +26,13 @@ def main(args):
     print data["train_X"].shape
     end = datetime.datetime.now()
     print "Read data in %d seconds" % (end-start).seconds
-
+    batch_size = min(DEFAULT_BATCH_SIZE, data["train_X"].shape[0])
     solver = FrameAverageSolver(model,
                                 data["train_X"], data["train_y"],
                                 val_X=data["val_X"], val_y=data["val_y"],
                                 num_epochs=5,
-                                batch_size=10,
-                                output_lr=1e-4)
+                                batch_size=batch_size,
+                                output_lr=5e-4)
     solver.train()
 
 if __name__ == "__main__":

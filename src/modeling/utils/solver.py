@@ -101,8 +101,24 @@ class FrameAverageSolver(object):
             loss = 0
             acc = 0
             for X_batch, y_batch in self.iterate_minibatches():
+                # prediction_scores = self.model.get_output(X_batch[0], mode='train')
+                # print prediction_scores
+                # print "predictions", prediction_scores.eval()
+                # mean = prediction_scores.mean(axis=0)
+                # print "before shuffle", mean.eval()
+                # mean = mean.dimshuffle(['x', 0])
+                # print "after shuffle", mean.eval()
+                # prediction = T.argmax(mean)
+                # y_out = np.array([y_batch[0]], dtype=np.int64).reshape(1,1)
+                # print "target value", y_out
+                # print "prediction", prediction.eval()
+
+                # loss = lasagne.objectives.categorical_crossentropy(mean, y_out)
+                # print "loss", loss.eval()
+
                 iters += 1
                 loss, predictions = self.train_function(X_batch, y_batch)
+                print loss, predictions
                 acc = self._compute_accuracy(predictions, y_batch)
             print "(%d/%d) Training loss: %f\tTraining accuracy:%2.2f" % (iters, num_iterations, loss, acc)
 
