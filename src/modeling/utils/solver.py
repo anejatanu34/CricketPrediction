@@ -59,7 +59,7 @@ class FrameAverageSolver(object):
                                                      sequences=[input_var, output_var])
 
         loss = losses.mean()
-        output_layer = self.model.output_layer()
+        output_layer = self.model.layer('fc8')
         # Get params for output layer and update using Adam
         params = output_layer.get_params(trainable=True)
         adam_update = lasagne.updates.adam(loss, params, learning_rate=self.output_lr)
