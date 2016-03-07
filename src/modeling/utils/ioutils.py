@@ -69,7 +69,11 @@ def read_dataset(json_videos, sample_probability=1.0, max_items=-1, max_frames=6
 
         print "Reading clips from %s" % clips_dir
         ctr = 0
-        for ball_dir in os.listdir(clips_dir):
+        all_clips = os.listdir(clips_dir)
+        indexes = np.arange(len(all_clips))
+        np.random.shuffle(indexes)
+        for i in indexes:
+            ball_dir = all_clips[i]:
             match = re.match(dir_pattern, ball_dir)
             if match:
                 ball_num = int(match.group(1))
