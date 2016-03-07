@@ -2,7 +2,7 @@ __author__ = 'anushabala'
 from argparse import ArgumentParser
 import cv2
 import os
-from utils import write_frames
+from utils import write_frames, RemoteHandler
 import shutil
 from fabric.api import *
 
@@ -29,6 +29,7 @@ def main(args):
         env.user = 'anusha'
         env.password= 'BakedByMe_2807'
 
+    handler = RemoteHandler()
     if not os.path.exists(out_dir):
         os.makedirs(out_dir)
     else:
@@ -82,7 +83,7 @@ def main(args):
                         os.makedirs(ball_dir)
                     if args.upload:
                         remote_ball_dir = os.path.join(remote_dir, 'ball%d' % ball_ctr)
-                        write_frames(frames, ball_dir, remote_upload=True, remote_dir=remote_ball_dir)
+                        write_frames(frames, ball_dir, remote_upload=True, remote_dir=remote_ball_dir, remote_handler=handler)
                     else:
                         write_frames(frames, ball_dir)
                 frames = []
@@ -99,7 +100,7 @@ def main(args):
                         os.makedirs(ball_dir)
                     if args.upload:
                         remote_ball_dir = os.path.join(remote_dir, 'ball%d' % ball_ctr)
-                        write_frames(frames, ball_dir, remote_upload=True, remote_dir=remote_ball_dir)
+                        write_frames(frames, ball_dir, remote_upload=True, remote_dir=remote_ball_dir, remote_handler=handler)
                     else:
                         write_frames(frames, ball_dir)
             print "Last ball written: %d\tLast frame recorded: %d\tLast frame read: %d" % (ball_ctr, last_recorded_frame, frame_ctr)
@@ -121,6 +122,12 @@ def main(args):
             skip_factor = args.skip_factor
         elif key_code == ord('h'):
             playback_help()
+
+    for i in xrange(handler.num_processes):
+        handler.queues[i].put(('quit', 'quit'))
+
+    for p in handler.processes:
+        p.join()
 
 
 if __name__ == "__main__":

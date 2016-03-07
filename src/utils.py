@@ -7,11 +7,30 @@ import glob
 import shutil
 import re
 from fabric.api import *
-import subprocess
-
+from multiprocessing import Process, Queue
 
 file_pattern = r'ball([0-9]+)'
 
+
+class RemoteHandler(object):
+    def __init__(self, num_processes=5):
+        self.num_processes = num_processes
+        self.queues = [Queue()] * num_processes
+        self.processes = []
+        for i in xrange(num_processes):
+            p = Process(target=self.copy_remote, args=(self.queues[i],))
+            self.processes.append(p)
+            p.start()
+
+    @staticmethod
+    def copy_remote(queue):
+        while True:
+            if not queue.empty():
+                local_path, remote_path = queue.get()
+                if local_path == 'quit' and remote_path == 'quit':
+                    break
+                copy_remote(local_path, remote_path)
+        return
 
 def load_centers(dirname, dims=(300,300)):
     centers = {}
@@ -34,20 +53,24 @@ def get_closest_center(centers, image):
         distances[name] = dist
     return min(distances, key=distances.get), sorted(distances.items(), key=operator.itemgetter(1))
 
-def write_frames(frames, out_path, remote_upload=False, remote_dir=None):
+
+def write_frames(frames, out_path, remote_upload=False, remote_dir=None, remote_handler=None):
     if os.path.exists(out_path):
         shutil.rmtree(out_path)
     os.makedirs(out_path)
     if remote_upload:
         make_remote_dir(remote_dir)
 
+    num_processes = remote_handler.num_processes
     for (i, frame) in enumerate(frames):
         fname = 'frame_%d.png' % (i+1)
         frame_path = os.path.join(out_path, fname)
         cv2.imwrite(frame_path, frame)
         if remote_upload:
             remote_path = os.path.join(remote_dir, fname)
-            copy_remote(frame_path, remote_path)
+
+            remote_handler.queues[i % num_processes].put((frame_path, remote_path))
+            # copy_remote(frame_path, remote_path)
 
 
 def make_remote_dir(dirname):
