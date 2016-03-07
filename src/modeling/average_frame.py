@@ -12,13 +12,14 @@ def main(args):
     dataset_json = args.json
     tuning_layers = args.tuning_layers
     vgg_path = args.vgg
+    print "Loading VGGNet model"
 
     model = AverageFrameModel(vgg_path,
                               output_neurons=4,
                               tuning_layers=tuning_layers)
 
     start = datetime.datetime.now()
-    data = read_dataset(dataset_json, sample_probability=0.5, max_items=2, mean_value=model.mean_bgr)
+    data = read_dataset(dataset_json, sample_probability=0.5, max_items=50, max_frames=20, mean_value=model.mean_bgr)
     print data["train_X"].shape
     end = datetime.datetime.now()
     print "Read data in %d seconds" % (end-start).seconds
@@ -26,7 +27,8 @@ def main(args):
     solver = FrameAverageSolver(model,
                                 data["train_X"], data["train_y"],
                                 val_X=data["val_X"], val_y=data["val_y"],
-                                num_epochs=1)
+                                num_epochs=5,
+                                batch_size=5)
     solver.train()
 
 if __name__ == "__main__":

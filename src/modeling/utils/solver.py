@@ -17,7 +17,7 @@ class FrameAverageSolver(object):
     since the training function and loss function calls will probably stay the same?
     todo maybe create a generic Solver class instead?
     """
-    def __init__(self, model, train_X, train_y, val_X, val_y, output_lr=1e-2, tune_lr=1e-3, num_epochs=1,
+    def __init__(self, model, train_X, train_y, val_X, val_y, output_lr=1e-1, tune_lr=1e-3, num_epochs=1,
                  batch_size=25, tuning_layers=[]):
         """
         Create a new FrameAverageSolver instance
@@ -42,9 +42,6 @@ class FrameAverageSolver(object):
         self.num_epochs = num_epochs
         self.batch_size = batch_size
         self.tuning_layers = tuning_layers
-        iterations_per_epoch = max(self.train_y.shape[0] / self.batch_size, 1)
-        num_iterations = iterations_per_epoch * self.num_epochs
-        print num_iterations
 
         self._init_train_fn()
         self._init_test_fn()
@@ -53,22 +50,29 @@ class FrameAverageSolver(object):
         """
         Initialize Theano function to compute loss and update weights using Adam for a single epoch and minibatch.
         """
-        loss = T.dscalar('loss')
+        input_var = tensor5('input')
+        output_var = T.lvector('output')
         # Compute losses by iterating over the input variable (a 5D tensor where each "row" represents a clip that
         # has some number of frames.
+        [losses, predictions], updates = theano.scan(fn=lambda X_clip, output: self.model.clip_loss(X_clip, output),
+                                                     outputs_info=None,
+                                                     sequences=[input_var, output_var])
+
+        loss = losses.mean()
         output_layer = self.model.output_layer()
         # Get params for output layer and update using Adam
         params = output_layer.get_params(trainable=True)
-        updates = lasagne.updates.adam(loss, params, learning_rate=self.output_lr)
+        adam_update = lasagne.updates.adam(loss, params, learning_rate=self.output_lr)
 
         # Combine update expressions returned by theano.scan() with update expressions returned from the adam update
+        updates.update(adam_update)
         for layer_key in self.tuning_layers:
             layer = self.model.layer(layer_key)
             layer_params = layer.get_params(trainable=True)
             layer_adam_updates = lasagne.updates.adam(loss, layer_params, learning_rate=self.tuning_lr)
             updates.update(layer_adam_updates)
         # todo update layers that need to be finetuned
-        self.update = theano.function([loss], updates=updates)
+        self.train_function = theano.function([input_var, output_var], [loss, predictions], updates=updates)
 
     def _init_test_fn(self):
         input_var = tensor5('test_input')
@@ -96,18 +100,18 @@ class FrameAverageSolver(object):
             acc = 0
             for X_batch, y_batch in self.iterate_minibatches():
                 iters += 1
-                loss, predictions = self.model.loss(X_batch, y_batch)
-                self.update(X_batch, y_batch, loss)
+                loss, predictions = self.train_function(X_batch, y_batch)
                 acc = self._compute_accuracy(predictions, y_batch)
             print "(%d/%d) Training loss: %f\tTraining accuracy:%2.2f" % (iters, num_iterations, loss, acc)
 
-            # check validation accuracy every 5 epochs
-            # todo maybe change this to every X epochs depending on # of epochs, or maybe make this parameterizable
             if i % 5 == 0:
-                test_loss, test_predictions = self.test_function(self.val_X, self.val_y)
-                test_acc = self._compute_accuracy(test_predictions, self.val_y)
-                print "\tTest loss: %f\tTest accuracy:%2.2f" % (test_loss, test_acc)
+                val_loss, val_predictions = self.test_function(self.val_X, self.val_y)
+                val_acc = self._compute_accuracy(val_predictions, self.val_y)
+                print "\tTest loss: %f\tTest accuracy:%2.2f" % (val_loss, val_acc)
 
+        val_loss, val_predictions = self.test_function(self.val_X, self.val_y)
+        val_acc = self._compute_accuracy(val_predictions, self.val_y)
+        print "\tTest loss: %f\tTest accuracy:%2.2f" % (val_loss, val_acc)
         end = datetime.datetime.now()
         print "Training took %d seconds" % (end-start).seconds
 
@@ -119,8 +123,9 @@ class FrameAverageSolver(object):
         Iterate over minibatches in one epoch
         :return a single batch of the training data
         """
-        ctr = 0
-        while ctr < self.train_y.shape[0]:
-            end = min(ctr + self.batch_size, self.train_X.shape[0])
-            yield self.train_X[ctr:end], self.train_y[ctr:end]
-            ctr += self.batch_size
+        num_train = self.train_X.shape[0]
+        num_iterations_per_epoch = num_train/self.batch_size
+        indexes = np.arange(num_train)
+        for i in xrange(num_iterations_per_epoch):
+            mask = np.random.choice(indexes, self.batch_size)
+            yield self.train_X[mask], self.train_y[mask]
