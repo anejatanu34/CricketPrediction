@@ -1,12 +1,12 @@
 __author__ = 'anushabala'
 from argparse import ArgumentParser
 from utils.models import AverageFrameModel, Outcome
-from utils.ioutils import read_dataset
+from utils.ioutils import read_dataset, read_dataset_tvt
 from utils.solver import FrameAverageSolver
 import datetime
 
 DEFAULT_MODEL_PATH = 'vgg16.pkl'
-
+DEFAULT_TVT_SPLIT = [0.6, 0.2, 0.2]
 
 def param_summary(num_train, args):
     print "Training set size: %d" % num_train
@@ -36,9 +36,14 @@ def main(args):
 
     start = datetime.datetime.now()
 
-    data = read_dataset(dataset_json, sample_probability=0.5, mode='temporal',
-                        max_items=max_items, max_frames=max_frames, mean_value=model.mean_bgr)
+    ratios = DEFAULT_TVT_SPLIT
+    tvt_split = [int(x * max_items) for x in ratios]
+    data = read_dataset_tvt(dataset_json, sample_probability=0.5, mode='temporal',
+                            max_items=max_items, max_frames=max_frames, mean_value=model.mean_bgr,
+                            tvt_split=tvt_split)
     print "Training data shape:", data["train_X"].shape
+    print "Test data shape:", data["test_X"].shape
+    print "Validation data shape:", data["val_X"].shape
 
     end = datetime.datetime.now()
     print "Read data in %d seconds" % (end-start).seconds

@@ -70,7 +70,6 @@ def sample_frames(frames, max_frames):
 
 
 def read_cricket_labels(innings1_file, innings2_file):
-    print "Reading commentary"
     labels = []
     illegal_balls = []
     ball_num = 1
@@ -103,9 +102,7 @@ def get_frames(video_num, ball_num, videos, sample_probability, mode, max_frames
 # todo add support to read in more class types if needed
 def read_dataset_tvt(json_videos, sample_probability=1.0, max_frames=60, mode='sample', class_dist=[0.35,0.25,0.2,0.2], tvt_split=[1,1,1], **kwargs):
     videos = json.load(open(json_videos, 'r'), encoding='utf-8')
-    X = []
-    raw_X = []
-    y = []
+
     data = {}
 
     # collect all video-ball labels
@@ -114,7 +111,7 @@ def read_dataset_tvt(json_videos, sample_probability=1.0, max_frames=60, mode='s
     for video in videos:
         clips_dir = video["clips"]
         all_clips = os.listdir(clips_dir)
-        all_clips_nums = [int(xx[4:]) for xx in all_clips]
+        all_clips_nums = [int(xx[4:]) for xx in all_clips if 'ball' in xx]
         innings1 = video["innings1"]
         innings2 = video["innings2"]
         labels, illegal_balls = read_cricket_labels(innings1, innings2)
@@ -143,7 +140,7 @@ def read_dataset_tvt(json_videos, sample_probability=1.0, max_frames=60, mode='s
         del frames
         ctr += 1
         if ctr % 25 == 0 and ctr > 0:
-            print "Finished loading train %d balls" % ctr
+            print "Finished loading val %d balls" % ctr
     
     # Get test set    
     data['test_X']  = []
@@ -159,7 +156,7 @@ def read_dataset_tvt(json_videos, sample_probability=1.0, max_frames=60, mode='s
         del frames
         ctr += 1
         if ctr % 25 == 0 and ctr > 0:
-            print "Finished loading train %d balls" % ctr
+            print "Finished loading test %d balls" % ctr
 
     ## Get train set
     # determining allocation to each class of videos
@@ -218,7 +215,6 @@ def read_dataset(json_videos, sample_probability=1.0, max_items=-1, max_frames=6
         all_clips_nums = [int(xx[4:]) for xx in all_clips]
         innings1 = video["innings1"]
         innings2 = video["innings2"]
->>>>>>> origin/kalpit
         labels, illegal_balls = read_cricket_labels(innings1, innings2)
         clip_ctr = 0
         for ll in range(len(labels)): # also ball_num
