@@ -11,6 +11,7 @@ tensor5 = T.TensorType('floatX', (False,) * 5)
 
 
 class FrameAverageSolver(object):
+
     """
     Solver for models.AverageFrameModel.
     todo: this can probably be generalized to all non-LSTM (and maybe even all LSTM) models,
@@ -18,7 +19,7 @@ class FrameAverageSolver(object):
     todo maybe create a generic Solver class instead?
     """
     def __init__(self, model, train_X, train_y, val_X, val_y, output_lr=1e-1, tune_lr=1e-3, lr_decay=0.95, num_epochs=1,
-                 batch_size=25, tuning_layers=[]):
+                 batch_size=25, tuning_layers=[], num_classes=4):
         """
         Create a new FrameAverageSolver instance
         :param model: Instance of the Model class (or a subclass of it) to train
@@ -43,6 +44,7 @@ class FrameAverageSolver(object):
         self.num_epochs = num_epochs
         self.batch_size = batch_size
         self.tuning_layers = tuning_layers
+        self.num_classes = num_classes
 
         self._init_train_fn()
         self._init_test_fn()
@@ -53,11 +55,14 @@ class FrameAverageSolver(object):
         """
         input_var = tensor5('input')
         output_var = T.lvector('output')
+        one_hot = T.extra_ops.to_one_hot(output_var, self.num_classes, dtype='int64')
+
+        # output_one_hot = T.extra_ops.to_one_hot(output_var, self.num_classes, dtype='int64')
         # Compute losses by iterating over the input variable (a 5D tensor where each "row" represents a clip that
         # has some number of frames.
-        [losses, predictions], updates = theano.scan(fn=lambda X_clip, output: self.model.clip_loss(X_clip, output),
+        [losses, predictions], updates = theano.scan(fn=lambda X_clip, output: self.model.clip_loss(X_clip, output, mode='test'),
                                                      outputs_info=None,
-                                                     sequences=[input_var, output_var])
+                                                     sequences=[input_var, one_hot])
 
         loss = losses.mean()
         output_layer = self.model.layer('fc8')
@@ -73,15 +78,20 @@ class FrameAverageSolver(object):
             layer_params = layer.get_params(trainable=True)
             layer_adam_updates = lasagne.updates.adam(loss, layer_params, learning_rate=self.tuning_lr)
             updates.update(layer_adam_updates)
-        # todo update layers that need to be finetuned
+        # TODO ONE HOT HERE TOO
         self.train_function = theano.function([input_var, output_var], [loss, predictions], updates=updates)
 
     def _init_test_fn(self):
-        input_var = tensor5('test_input')
-        output_var = T.lvector('test_output')
+        input_var = tensor5('input')
+        output_var = T.lvector('output')
+        one_hot = T.extra_ops.to_one_hot(output_var, self.num_classes, dtype='int64')
+
+        # output_one_hot = T.extra_ops.to_one_hot(output_var, self.num_classes, dtype='int64')
+        # Compute losses by iterating over the input variable (a 5D tensor where each "row" represents a clip that
+        # has some number of frames.
         [losses, predictions], updates = theano.scan(fn=lambda X_clip, output: self.model.clip_loss(X_clip, output, mode='test'),
                                                      outputs_info=None,
-                                                     sequences=[input_var, output_var])
+                                                     sequences=[input_var, one_hot])
         loss = losses.mean()
 
         self.test_function = theano.function([input_var, output_var], [loss, predictions], updates=updates)
@@ -109,17 +119,25 @@ class FrameAverageSolver(object):
                 # mean = mean.dimshuffle(['x', 0])
                 # print "after shuffle", mean.eval()
                 # prediction = T.argmax(mean)
-                # y_out = np.array([y_batch[0]], dtype=np.int64).reshape(1,1)
                 # print "target value", y_out
                 # print "prediction", prediction.eval()
 
-                # loss = lasagne.objectives.categorical_crossentropy(mean, y_out)
-                # print "loss", loss.eval()
+
 
                 iters += 1
+
                 loss, predictions = self.train_function(X_batch, y_batch)
-                print loss, predictions
+                # print "Scores", scores
+                # print "Mean", mean
+                # print "Loss", loss
+                # print "Prediction", predictions
+                # print "True label", y_batch
+                # print "One hot", onehot
+                # y_out = np.array([y_batch[0]], dtype=np.int64).reshape(1,1)
+                # loss = lasagne.objectives.categorical_crossentropy(mean[0], y_out)
+                # print "loss", loss.eval()
                 acc = self._compute_accuracy(predictions, y_batch)
+
             print "(%d/%d) Training loss: %f\tTraining accuracy:%2.2f" % (iters, num_iterations, loss, acc)
 
             if 0 < self.lr_decay < 1:
@@ -135,7 +153,7 @@ class FrameAverageSolver(object):
 
         val_loss, val_predictions = self.test_function(self.val_X, self.val_y)
         val_acc = self._compute_accuracy(val_predictions, self.val_y)
-        print "\tTest loss: %f\tTest accuracy:%2.2f" % (val_loss, val_acc)
+        print "Final Test loss: %f\tTest accuracy:%2.2f" % (val_loss, val_acc)
         end = datetime.datetime.now()
         print "Training took %d seconds" % (end-start).seconds
 

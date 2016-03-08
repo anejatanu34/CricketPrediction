@@ -6,7 +6,7 @@ from utils.solver import FrameAverageSolver
 import datetime
 
 DEFAULT_MODEL_PATH = 'vgg16.pkl'
-DEFAULT_BATCH_SIZE = 15
+DEFAULT_BATCH_SIZE = 2
 
 def main(args):
     dataset_json = args.json
@@ -30,7 +30,7 @@ def main(args):
     solver = FrameAverageSolver(model,
                                 data["train_X"], data["train_y"],
                                 val_X=data["val_X"], val_y=data["val_y"],
-                                num_epochs=5,
+                                num_epochs=1,
                                 batch_size=batch_size,
                                 output_lr=5e-4)
     solver.train()

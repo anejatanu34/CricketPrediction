@@ -115,8 +115,9 @@ class AverageFrameModel(Model):
         mean_score = mean_score.dimshuffle('x', 0)
         # prediction_counts = T.bincount(T.argmax(prediction_scores, axis=1))
         prediction = T.argmax(mean_score)
-        target = y.dimshuffle('x').dimshuffle(0, 'x')
-        loss = lasagne.objectives.categorical_crossentropy(mean_score, target)
+        y = y.dimshuffle('x', 0)
+        # target = y.dimshuffle('x')
+        loss = lasagne.objectives.categorical_crossentropy(predictions=mean_score, targets=y)
         return loss, prediction
 
     def predict(self, frames):
