@@ -23,7 +23,6 @@ def read_frames(dirname, max_frames, p=0.5, mode='sample', **kwargs):
             frames.append(frame)
         else:
             break
-
         i += 1
 
     if mode == 'sample':
@@ -102,6 +101,102 @@ def get_frames(video_num, ball_num, videos, sample_probability, mode, max_frames
 
 
 # todo add support to read in more class types if needed
+def read_dataset_tvt(json_videos, sample_probability=1.0, max_frames=60, mode='sample', class_dist=[0.35,0.25,0.2,0.2], tvt_split=[1,1,1], **kwargs):
+    videos = json.load(open(json_videos, 'r'), encoding='utf-8')
+    X = []
+    raw_X = []
+    y = []
+    data = {}
+
+    # collect all video-ball labels
+    labels_mapping = [[], [], []] # [[video_num], [ball_num], [label]]
+    video_num = 1
+    for video in videos:
+        clips_dir = video["clips"]
+        all_clips = os.listdir(clips_dir)
+        all_clips_nums = [int(xx[4:]) for xx in all_clips]
+        innings1 = video["innings1"]
+        innings2 = video["innings2"]
+        labels, illegal_balls = read_cricket_labels(innings1, innings2)
+        clip_ctr = 0
+        for ll in range(len(labels)): # also ball_num
+            if ll+1 not in all_clips_nums:    
+                continue
+            labels_mapping[0].append(video_num)
+            labels_mapping[1].append(ll+1)
+            labels_mapping[2].append(labels[ll])
+            clip_ctr += 1
+        video_num += 1
+
+    ctr = 0
+    # Get val set
+    data['val_X']  = []
+    data['val_y']  = []
+    for i in range(tvt_split[1]):
+        ind = np.random.randint(0,len(labels_mapping[0]))
+        raw_frames, frames = get_frames(labels_mapping[0][ind], labels_mapping[1][ind], videos, sample_probability, mode, max_frames, **kwargs)
+        data['val_X'].append(frames)
+        data['val_y'].append(labels_mapping[2][ind])
+        del labels_mapping[0][ind]
+        del labels_mapping[1][ind]
+        del labels_mapping[2][ind]
+        del frames
+        ctr += 1
+        if ctr % 25 == 0 and ctr > 0:
+            print "Finished loading train %d balls" % ctr
+    
+    # Get test set    
+    data['test_X']  = []
+    data['test_y']  = []
+    for i in range(tvt_split[2]):
+        ind = np.random.randint(0,len(labels_mapping[0]))
+        raw_frames, frames = get_frames(labels_mapping[0][ind], labels_mapping[1][ind], videos, sample_probability, mode, max_frames, **kwargs)
+        data['test_X'].append(frames)
+        data['test_y'].append(labels_mapping[2][ind])
+        del labels_mapping[0][ind]
+        del labels_mapping[1][ind]
+        del labels_mapping[2][ind]
+        del frames
+        ctr += 1
+        if ctr % 25 == 0 and ctr > 0:
+            print "Finished loading train %d balls" % ctr
+
+    ## Get train set
+    # determining allocation to each class of videos
+    data['train_X']  = []
+    data['train_y']  = []
+    counts = (tvt_split[0] * np.array(class_dist)).astype(int)
+    if np.sum(counts) < tvt_split[0]:
+        counts[:tvt_split[0]-np.sum(counts)] += 1
+
+    # Add video-ball clips
+    for cc in range(len(counts)):
+        inds = [xx for xx in range(len(labels_mapping[2])) if labels_mapping[2][xx]==cc] # index of all 0/1/2/3s
+        np.random.shuffle(inds)
+
+        # number of repeats for each ball
+        num_repeats = [0 for ii in range(len(inds))]
+        for ii in range(counts[cc]):
+            num_repeats[ii%len(inds)] += 1
+        # add video-ball data
+        for ii in range(len(inds)):
+            ind = inds[ii]
+            for rr in range(num_repeats[ii]):
+                raw_frames, frames = get_frames(labels_mapping[0][ind], labels_mapping[1][ind], videos, sample_probability, mode, max_frames, **kwargs)
+                data['train_X'].append(frames)
+                data['train_y'].append(labels_mapping[2][ind])
+                del frames
+
+                ctr += 1
+                if ctr % 25 == 0 and ctr > 0:
+                    print "Finished loading train %d balls" % ctr
+
+    # turn all dict values to np.arrays
+    for k in data.keys():
+        data[k] = np.array(data[k])
+    return data
+
+
 def read_dataset(json_videos, sample_probability=1.0, max_items=-1, max_frames=60, mode='sample', class_dist=[0.35,0.25,0.2,0.2], **kwargs):
     videos = json.load(open(json_videos, 'r'), encoding='utf-8')
     X = []
@@ -120,9 +215,10 @@ def read_dataset(json_videos, sample_probability=1.0, max_items=-1, max_frames=6
     for video in videos:
         clips_dir = video["clips"]
         all_clips = os.listdir(clips_dir)
-        all_clips_nums = [int(xx[4:]) for xx in all_clips if "ball" in xx]
+        all_clips_nums = [int(xx[4:]) for xx in all_clips]
         innings1 = video["innings1"]
         innings2 = video["innings2"]
+>>>>>>> origin/kalpit
         labels, illegal_balls = read_cricket_labels(innings1, innings2)
         clip_ctr = 0
         for ll in range(len(labels)): # also ball_num
