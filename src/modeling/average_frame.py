@@ -16,6 +16,7 @@ def param_summary(num_train, args):
     print "Layers to tune:", args.tune
     print "Batch size: %d" % args.batch_size
     print "Number of epochs: %d" % args.num_epochs
+    print "Regularization factor: %f" % args.reg
 
 
 def main(args):
@@ -53,7 +54,8 @@ def main(args):
                                 batch_size=batch_size,
                                 output_lr=args.output_lr,
                                 tune_lr=args.tune_lr,
-                                tuning_layers=tuning_layers)
+                                tuning_layers=tuning_layers,
+                                reg=args.reg)
 
     solver.train()
     param_summary(data["train_X"].shape[0], args)
@@ -71,6 +73,7 @@ if __name__ == "__main__":
     parser.add_argument('--tune_lr', type=float, default=1e-5, help='Learning rate for layers to be tuned')
     parser.add_argument('--batch_size', type=int, default=20, help='Batch size for minibatch training')
     parser.add_argument('--num_epochs', type=int, default=5, help='Number of epochs to train for')
+    parser.add_argument('--reg', type=float, default=1e-4, help='Regularization factor')
     clargs = parser.parse_args()
 
     main(clargs)

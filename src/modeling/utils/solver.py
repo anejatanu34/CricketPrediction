@@ -4,10 +4,12 @@ import theano
 from theano import tensor as T
 import numpy as np
 import datetime
+from lasagne import regularization
 
 tensor5 = T.TensorType('floatX', (False,) * 5)
 
 # todo implement masks
+# todo add regularization
 
 
 class FrameAverageSolver(object):
@@ -19,7 +21,7 @@ class FrameAverageSolver(object):
     todo maybe create a generic Solver class instead?
     """
     def __init__(self, model, train_X, train_y, val_X, val_y, output_lr=1e-1, tune_lr=1e-3, lr_decay=0.95, num_epochs=1,
-                 batch_size=25, tuning_layers=[], num_classes=4):
+                 batch_size=25, tuning_layers=[], num_classes=4, reg=1e-4):
         """
         Create a new FrameAverageSolver instance
         :param model: Instance of the Model class (or a subclass of it) to train
@@ -45,6 +47,7 @@ class FrameAverageSolver(object):
         self.batch_size = batch_size
         self.tuning_layers = tuning_layers
         self.num_classes = num_classes
+        self.reg = reg
 
         self._init_train_fn()
         self._init_test_fn()
@@ -66,6 +69,12 @@ class FrameAverageSolver(object):
 
         loss = losses.mean()
         output_layer = self.model.layer('fc8')
+        l2_penalty = regularization.regularize_layer_params(output_layer, regularization.l2) * self.reg * 0.5
+        for layer_key in self.tuning_layers:
+            layer = self.model.layer(layer_key)
+            l2_penalty += regularization.regularize_layer_params(layer, regularization.l2) * self.reg * 0.5
+
+        loss += l2_penalty
 
         # Get params for output layer and update using Adam
         params = output_layer.get_params(trainable=True)
