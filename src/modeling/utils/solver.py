@@ -98,7 +98,7 @@ class FrameAverageSolver(object):
         # output_one_hot = T.extra_ops.to_one_hot(output_var, self.num_classes, dtype='int64')
         # Compute losses by iterating over the input variable (a 5D tensor where each "row" represents a clip that
         # has some number of frames.
-        [losses, predictions], updates = theano.scan(fn=lambda X_clip, output: self.model.clip_loss(X_clip, output, mode='test'),
+        [losses, predictions], updates = theano.scan(fn=lambda X_clip, output: self.model.clip_loss(X_clip, output),
                                                      outputs_info=None,
                                                      sequences=[input_var, one_hot])
         loss = losses.mean()
