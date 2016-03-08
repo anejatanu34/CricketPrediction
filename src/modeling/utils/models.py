@@ -22,7 +22,7 @@ class Outcome(object):
     def get_label_from_commentary(cls, outcome):
         if outcome == '1' or outcome == '2':
             return cls.RUN
-        if outcome == 'no run':
+        if outcome == 'no run' or outcome == 'no_run':
             return cls.NO_RUN
         if outcome == 'out':
             return cls.OUT
