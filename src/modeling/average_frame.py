@@ -13,13 +13,17 @@ def param_summary(num_train, args):
     print "Number of frames per clip: %d" % args.max_frames
     print "Learning rate for output layer: %f" % args.output_lr
     print "Learning rate for tuning layers: %f" % args.tune_lr
+    print "Layers to tune:", args.tune
     print "Batch size: %d" % args.batch_size
     print "Number of epochs: %d" % args.num_epochs
 
 
 def main(args):
     dataset_json = args.json
-    tuning_layers = args.tuning_layers
+    tuning_layers = []
+    if args.tune:
+        tuning_layers = args.tune.split(",")
+        print tuning_layers
     vgg_path = args.vgg
     max_items = args.max_items
     max_frames = args.max_frames
@@ -38,6 +42,8 @@ def main(args):
     end = datetime.datetime.now()
     print "Read data in %d seconds" % (end-start).seconds
 
+    print "---- Training information -----"
+    param_summary(data["train_X"].shape[0], args)
     batch_size = min(args.batch_size, data["train_X"].shape[0])
 
     solver = FrameAverageSolver(model,
@@ -46,9 +52,11 @@ def main(args):
                                 num_epochs=args.num_epochs,
                                 batch_size=batch_size,
                                 output_lr=args.output_lr,
-                                tune_lr=args.tune_lr)
+                                tune_lr=args.tune_lr,
+                                tuning_layers=tuning_layers)
 
     solver.train()
+    param_summary(data["train_X"].shape[0], args)
 
 if __name__ == "__main__":
     parser = ArgumentParser()
@@ -56,7 +64,7 @@ if __name__ == "__main__":
                         help='Path to JSON file containing information about the location of the segmented clips and'
                              ' corresponding labels for each video. See sample_dataset.json for an example.')
     parser.add_argument('--vgg', type=str, default=DEFAULT_MODEL_PATH, help='Path to weights for pretrained VGG16 model (in .pkl format)')
-    parser.add_argument('--tune', type=str, action='append', dest='tuning_layers', help='Name of layer(s) to tune weights for. This argument must be provided one for each layer separately. For example, python average_frame.py --tune fc7 --tune fc8 will tune the parameters for fc7 and fc8.')
+    parser.add_argument('--tune', type=str, default=None, help='Name(s) of layer(s) to tune weights for (comma-separated).')
     parser.add_argument('--max_items', type=int, default=10, help='Max items to load from the dataset')
     parser.add_argument('--max_frames', type=int, default=10, help='Max frames to load per clip')
     parser.add_argument('--output_lr', type=float, default=1e-4, help='Learning rate for final fully connected layer (output layer)')
