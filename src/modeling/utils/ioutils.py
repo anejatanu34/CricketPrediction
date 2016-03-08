@@ -1,4 +1,4 @@
-__author__ = 'anushabala'
+author__ = 'anushabala'
 import os
 import numpy as np
 from models import Outcome
@@ -6,6 +6,7 @@ import re
 import json
 from preprocess import preprocess_frames
 import matplotlib.pyplot as plt
+import scipy
 
 dir_pattern = r'ball([0-9]+)'
 
@@ -17,8 +18,9 @@ def read_frames(dirname, max_frames, p=0.5, mode='sample', **kwargs):
         name = 'frame_%d.png' % i
         if os.path.exists(os.path.join(dirname, name)):
             frame = plt.imread(os.path.join(dirname, name), '.png')
-            if np.random.uniform() <= p:
-                frames.append(frame)
+            #if np.random.uniform() <= p:
+            #    frames.append(frame)
+            frames.append(frame)
         else:
             break
 
@@ -36,13 +38,13 @@ def sample_temporal_frames(frames, max_frames):
             frames.append(np.zeros_like(frames[0]))
         return np.array(frames)
 
-    window = len(frames)/ max_frames
+    window = 1.0 * len(frames)/ max_frames
     selected = []
     indexes = np.arange(len(frames))
     start = 0
     while start < len(frames) - 1 and len(selected) < max_frames:
         end = min(start + window, len(frames))
-        selected.append(np.random.choice(indexes[start:end]))
+        selected.append(np.random.choice(indexes[int(start):int(end)]))
         start = end
     frames = np.array(frames)
     frames = frames[selected]
@@ -84,47 +86,78 @@ def read_cricket_labels(innings1_file, innings2_file):
             outcome = Outcome.get_label_from_commentary(cols[-1])
             labels.append(outcome)
             ball_num += 1
-
     return labels, illegal_balls
 
 
+def get_frames(video_num, ball_num, videos, sample_probability, mode, max_frames, **kwargs):
+
+    clips_dir = videos[video_num-1]["clips"]
+    all_clips = os.listdir(clips_dir)
+    ball_dir = 'ball'+str(ball_num) # ll_clips[ball_num-1]
+    frames = read_frames(os.path.join(clips_dir, ball_dir), p=sample_probability,
+                         mode=mode, max_frames=max_frames)
+    raw_frames, frames = preprocess_frames(frames, **kwargs)
+
+    return raw_frames, frames
+
+
 # todo add support to read in more class types if needed
-def read_dataset(json_videos, sample_probability=1.0, max_items=-1, max_frames=60, mode='sample', **kwargs):
+def read_dataset(json_videos, sample_probability=1.0, max_items=-1, max_frames=60, mode='sample', class_dist=[0.35,0.25,0.2,0.2], **kwargs):
     videos = json.load(open(json_videos, 'r'), encoding='utf-8')
     X = []
     raw_X = []
     y = []
+
+    # determining allocation to each class of videos
+    counts = (max_items * np.array(class_dist)).astype(int)
+    if np.sum(counts) < max_items:
+        counts[:max_items-np.sum(counts)] += 1
+    print 'clips of class [0, 1, 2, 3]:', counts   
+
+    # collect all video-ball labels
+    labels_mapping = [[], [], []] # [[video_num], [ball_num], [label]]
+    video_num = 1
     for video in videos:
         clips_dir = video["clips"]
+        all_clips = os.listdir(clips_dir)
+        all_clips_nums = [int(xx[4:]) for xx in all_clips if "ball" in xx]
         innings1 = video["innings1"]
         innings2 = video["innings2"]
-
         labels, illegal_balls = read_cricket_labels(innings1, innings2)
+        clip_ctr = 0
+        for ll in range(len(labels)): # also ball_num
+            if ll+1 not in all_clips_nums:    
+                continue
+            labels_mapping[0].append(video_num)
+            labels_mapping[1].append(ll+1)
+            labels_mapping[2].append(labels[ll])
+            clip_ctr += 1
+        video_num += 1
 
-        print "Reading clips from %s" % clips_dir
-        ctr = 0
-        all_clips = os.listdir(clips_dir)
-        indexes = np.arange(len(all_clips))
-        np.random.shuffle(indexes)
-        for i in indexes:
-            ball_dir = all_clips[i]
-            match = re.match(dir_pattern, ball_dir)
-            if match:
-                ball_num = int(match.group(1))
+    # Add video-ball clips
+    ctr = 0
+    for cc in range(len(counts)):
+        inds = [xx for xx in range(len(labels_mapping[2])) if labels_mapping[2][xx]==cc] # index of all 0/1/2/3s
+        np.random.shuffle(inds)
 
-                if ball_num not in illegal_balls:
-                    frames = read_frames(os.path.join(clips_dir, ball_dir), p=sample_probability,
-                                         mode=mode, max_frames=max_frames)
-                    raw_frames, frames = preprocess_frames(frames, **kwargs)
-                    raw_X.append(raw_frames)
-                    X.append(frames)
-                    y.append(labels[ball_num - 1])
-                    del frames
-                    ctr += 1
-            if 0 < max_items == ctr:
-                break
-            if ctr % 25 == 0 and ctr > 0:
-                print "Finished loading %d balls" % ctr
+        # number of repeats for each ball
+        num_repeats = [0 for ii in range(len(inds))]
+        for ii in range(counts[cc]):
+            num_repeats[ii%len(inds)] += 1
+        # add video-ball data
+        for ii in range(len(inds)):
+            ind = inds[ii]
+            for rr in range(num_repeats[ii]):
+                raw_frames, frames = get_frames(labels_mapping[0][ind], labels_mapping[1][ind], videos, sample_probability, mode, max_frames, **kwargs)
+                raw_X.append(raw_frames)
+                X.append(frames)
+                y.append(labels_mapping[2][ind])
+                del frames
+                del raw_frames
+                ctr += 1
+
+                if ctr % 25 == 0 and ctr > 0:
+                    print "Finished loading %d balls" % ctr
 
     return split_data(np.array(X), np.array(y).astype(np.int32))
 
