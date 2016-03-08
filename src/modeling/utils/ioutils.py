@@ -1,4 +1,4 @@
-author__ = 'anushabala'
+__author__='anushabala'
 import os
 import numpy as np
 from models import Outcome
@@ -104,6 +104,7 @@ def read_dataset_tvt(json_videos, sample_probability=1.0, max_frames=60, mode='s
     videos = json.load(open(json_videos, 'r'), encoding='utf-8')
 
     data = {}
+    clip_ids = {} 
 
     # collect all video-ball labels
     labels_mapping = [[], [], []] # [[video_num], [ball_num], [label]]
@@ -129,11 +130,13 @@ def read_dataset_tvt(json_videos, sample_probability=1.0, max_frames=60, mode='s
     # Get val set
     data['val_X']  = []
     data['val_y']  = []
+    clip_ids['val'] = []
     for i in range(tvt_split[1]):
         ind = np.random.randint(0,len(labels_mapping[0]))
         raw_frames, frames = get_frames(labels_mapping[0][ind], labels_mapping[1][ind], videos, sample_probability, mode, max_frames, **kwargs)
         data['val_X'].append(frames)
         data['val_y'].append(labels_mapping[2][ind])
+        clip_ids['val'].append(str(labels_mapping[0][ind])+','+str(labels_mapping[1][ind])+','+str(labels_mapping[2][ind]))
         del labels_mapping[0][ind]
         del labels_mapping[1][ind]
         del labels_mapping[2][ind]
@@ -145,11 +148,13 @@ def read_dataset_tvt(json_videos, sample_probability=1.0, max_frames=60, mode='s
     # Get test set    
     data['test_X']  = []
     data['test_y']  = []
+    clip_ids['test'] = []
     for i in range(tvt_split[2]):
         ind = np.random.randint(0,len(labels_mapping[0]))
         raw_frames, frames = get_frames(labels_mapping[0][ind], labels_mapping[1][ind], videos, sample_probability, mode, max_frames, **kwargs)
         data['test_X'].append(frames)
         data['test_y'].append(labels_mapping[2][ind])
+        clip_ids['test'].append(str(labels_mapping[0][ind])+','+str(labels_mapping[1][ind])+','+str(labels_mapping[2][ind]))
         del labels_mapping[0][ind]
         del labels_mapping[1][ind]
         del labels_mapping[2][ind]
@@ -162,6 +167,7 @@ def read_dataset_tvt(json_videos, sample_probability=1.0, max_frames=60, mode='s
     # determining allocation to each class of videos
     data['train_X']  = []
     data['train_y']  = []
+    clip_ids['train'] = []
     counts = (tvt_split[0] * np.array(class_dist)).astype(int)
     if np.sum(counts) < tvt_split[0]:
         counts[:tvt_split[0]-np.sum(counts)] += 1
@@ -182,11 +188,16 @@ def read_dataset_tvt(json_videos, sample_probability=1.0, max_frames=60, mode='s
                 raw_frames, frames = get_frames(labels_mapping[0][ind], labels_mapping[1][ind], videos, sample_probability, mode, max_frames, **kwargs)
                 data['train_X'].append(frames)
                 data['train_y'].append(labels_mapping[2][ind])
+                clip_ids['train'].append(str(labels_mapping[0][ind])+','+str(labels_mapping[1][ind])+','+str(labels_mapping[2][ind]))
                 del frames
 
                 ctr += 1
                 if ctr % 25 == 0 and ctr > 0:
                     print "Finished loading train %d balls" % ctr
+
+    # print clips ids
+    with open('clip_ids.txt', 'w') as f:
+        f.write(json.dumps(clip_ids)+'\n')
 
     # turn all dict values to np.arrays
     for k in data.keys():
@@ -195,7 +206,7 @@ def read_dataset_tvt(json_videos, sample_probability=1.0, max_frames=60, mode='s
 
 
 def read_dataset(json_videos, sample_probability=1.0, max_items=-1, max_frames=60, mode='sample', class_dist=[0.35,0.25,0.2,0.2], **kwargs):
-    videos = json.load(open(json_videos, 'r'), encoding='utf-8')
+    videos = json.load(open(json_videos, 'r'))
     X = []
     raw_X = []
     y = []
