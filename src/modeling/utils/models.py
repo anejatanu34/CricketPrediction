@@ -1,6 +1,6 @@
 __author__ = 'anushabala'
 
-from .vgg16 import build_model, get_ordered_layers
+from .vgg16 import build_model, build_late_fusion_model
 import pickle
 import lasagne
 import numpy as np
@@ -59,11 +59,11 @@ class Model(object):
     def layer(self, key):
         return self.net[key]
 
-    def get_output(self, input_image, mode='train', layer_name=output_key):
+    def get_output(self, input_images, mode='train', layer_name=output_key):
         if mode == 'test':
-            return lasagne.layers.get_output(self.layer(layer_name), input_image, deterministic=True)
+            return lasagne.layers.get_output(self.layer(layer_name), input_images, deterministic=True)
         else:
-            return lasagne.layers.get_output(self.layer(layer_name), input_image, deterministic=False)
+            return lasagne.layers.get_output(self.layer(layer_name), input_images, deterministic=False)
 
 
 class VGG16Model(Model):
@@ -122,3 +122,41 @@ class AverageFrameModel(Model):
 
     def predict(self, frames):
         pass
+
+
+class LateFusionModel(Model):
+    merge_fc_layer = 'fc6'
+    reshape_layer = 'rshp5_4'
+
+    def __init__(self, path, mean_key='mean value',
+                 weights_key='param values', output_neurons=4, class_labels=Outcome.class_labels()):
+        self.net = build_late_fusion_model(output_neurons)
+        model = pickle.load(open(path))
+        self.labels = class_labels
+        self.mean_bgr = np.reshape(model[mean_key], (3,1,1))
+        self.model_weights = model[weights_key]
+        self.tuning_layers = ['fc7', 'fc6']
+        self._set_model_params()
+
+    def _set_model_params(self):
+        """
+        Set params according to VGG16 pretrained weights for all layers except output layer
+        """
+        last_layer = self.net[self.reshape_layer].input_layer
+        lasagne.layers.set_all_param_values(last_layer, self.model_weights[:-6])
+
+    def clip_loss(self, X, y, mode='train'):
+        """
+        Get the loss for a single clip by computing the combined loss of the first and last frame of the clip
+        :param X: All the frames in a single clip
+        :param y: Output label for clip
+        :param mode: 'train' or 'test'
+        :return:
+        """
+        prediction_scores = self.get_output(X, mode=mode)
+        # prediction_scores = prediction_scores.dimshuffle((1,))
+        prediction = T.argmax(prediction_scores, axis=1)
+        # prediction_scores = prediction_scores.dimshuffle('x', 0)
+        y = y.dimshuffle('x', 0)
+        loss = lasagne.objectives.categorical_crossentropy(prediction_scores, y)
+        return loss, prediction[0]
