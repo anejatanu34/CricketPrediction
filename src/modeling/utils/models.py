@@ -118,7 +118,10 @@ class AverageFrameModel(Model):
         y = y.dimshuffle('x', 0)
         # target = y.dimshuffle('x')
         loss = lasagne.objectives.categorical_crossentropy(predictions=mean_score, targets=y)
-        return loss, prediction
+        if mode == 'train':
+            return loss, prediction
+        else:
+            return loss, prediction, mean_score
 
     def predict(self, frames):
         pass
@@ -159,4 +162,7 @@ class LateFusionModel(Model):
         # prediction_scores = prediction_scores.dimshuffle('x', 0)
         y = y.dimshuffle('x', 0)
         loss = lasagne.objectives.categorical_crossentropy(prediction_scores, y)
-        return loss, prediction[0]
+        if mode == 'train':
+            return loss, prediction[0]
+        else:
+            return loss, prediction[0], prediction_scores

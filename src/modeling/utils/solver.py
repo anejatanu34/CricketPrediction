@@ -111,12 +111,12 @@ class Solver(object):
         # output_one_hot = T.extra_ops.to_one_hot(output_var, self.num_classes, dtype='int64')
         # Compute losses by iterating over the input variable (a 5D tensor where each "row" represents a clip that
         # has some number of frames.
-        [losses, predictions], updates = theano.scan(fn=lambda X_clip, output: self.model.clip_loss(X_clip, output),
+        [losses, predictions, scores], updates = theano.scan(fn=lambda X_clip, output: self.model.clip_loss(X_clip, output, mode='test'),
                                                      outputs_info=None,
                                                      sequences=[input_var, one_hot])
         loss = losses.mean()
 
-        self.test_function = theano.function([input_var, output_var], [loss, predictions], updates=updates)
+        self.test_function = theano.function([input_var, output_var], [loss, predictions, scores], updates=updates)
 
     def train(self):
         """
@@ -127,7 +127,7 @@ class Solver(object):
         iters = 0
         # compute initial validation loss and accuracy
         val_X, val_y = self._get_val_data()
-        val_loss, val_predictions = self.test_function(val_X, val_y)
+        val_loss, val_predictions, scores = self.test_function(val_X, val_y)
         val_acc = self._compute_accuracy(val_predictions, self.val_y)
         print "Initial validation loss: %f\tValidation accuracy:%2.2f" % (val_loss, val_acc)
         self.val_acc_history.append((0, val_acc))
@@ -142,7 +142,7 @@ class Solver(object):
                 iters += 1
 
                 if iters == 1:
-                    initial_loss, initial_predictions = self.test_function(X_batch,y_batch)
+                    initial_loss, initial_predictions, scores = self.test_function(X_batch,y_batch)
                     print "(%d/%d) Initial training loss: %f\tTraining accuracy:%2.2f" % (i, self.num_epochs, initial_loss, acc)
                     initial_acc = self._compute_accuracy(initial_predictions, y_batch)
                     self.train_loss_history.append((0, initial_loss))
@@ -161,7 +161,7 @@ class Solver(object):
 
             if i % 5 == 0:
                 val_X, val_y = self._get_val_data()
-                val_loss, val_predictions = self.test_function(val_X, val_y)
+                val_loss, val_predictions, scores = self.test_function(val_X, val_y)
                 val_acc = self._compute_accuracy(val_predictions, self.val_y)
                 print "\tValidation loss: %f\tValidation accuracy:%2.2f" % (val_loss, val_acc)
                 self.val_acc_history.append((i+1, val_acc))
@@ -170,7 +170,7 @@ class Solver(object):
         print "Training took %d seconds" % (end-start).seconds
         if (self.num_epochs - 1) % 5 != 0:
             val_X, val_y = self._get_val_data()
-            val_loss, val_predictions = self.test_function(val_X, val_y)
+            val_loss, val_predictions, scores = self.test_function(val_X, val_y)
             val_acc = self._compute_accuracy(val_predictions, val_y)
             print "Final Validation loss: %f\tTest accuracy:%2.2f" % (val_loss, val_acc)
             self.val_acc_history.append((self.num_epochs, val_acc))
@@ -190,11 +190,10 @@ class Solver(object):
         if self.model_type == 'late':
             test_X = np.take(X, indices=[0, -1], axis=1)
 
-        loss, predictions = self.test_function(test_X, y)
+        loss, predictions, prediction_scores = self.test_function(test_X, y)
         acc = self._compute_accuracy(predictions, y)
         print "Accuracy on test set: %2.4f" % acc
-
-        return predictions
+        return predictions, prediction_scores
 
     def iterate_minibatches(self):
         """

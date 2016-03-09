@@ -5,6 +5,7 @@ from utils.ioutils import read_dataset_tvt
 from utils.solver import Solver
 import datetime
 import json
+import numpy as np
 
 DEFAULT_MODEL_PATH = 'vgg16.pkl'
 model_types = ['average', 'late']
@@ -22,13 +23,14 @@ def param_summary(num_train, args):
     print "Regularization factor: %f" % args.reg
 
 
-def write_predictions(ids_file, predictions, outfile):
+def write_predictions(ids_file, predictions, scores, outfile):
     ids = json.load(open(ids_file, 'r'))
     test_ids = ids["test"]
     out = open(outfile, 'w')
 
     for i in xrange(0, len(test_ids)):
-        out.write("%s\t%s\n" % (test_ids[i], predictions[i]))
+        norm_scores = np.array(scores[i][0])
+        out.write("%s\t%s\t%s\n" % (test_ids[i], predictions[i], "\t".join([str(x) for x in list(norm_scores)])))
 
     out.close()
 
@@ -81,8 +83,8 @@ def main(args):
                     reg=args.reg)
 
     solver.train()
-    test_predictions = solver.predict(data["test_X"], data["test_y"])
-    write_predictions(args.ids, test_predictions, args.out)
+    test_predictions, scores = solver.predict(data["test_X"], data["test_y"])
+    write_predictions(args.ids, test_predictions, scores, args.out)
     print "--------------------------------------"
     print "---- Training parameters summary -----"
     param_summary(data["train_X"].shape[0], args)
