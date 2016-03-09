@@ -4,6 +4,7 @@ from utils.models import AverageFrameModel, LateFusionModel
 from utils.ioutils import read_dataset_tvt
 from utils.solver import Solver
 import datetime
+import json
 
 DEFAULT_MODEL_PATH = 'vgg16.pkl'
 model_types = ['average', 'late']
@@ -21,6 +22,17 @@ def param_summary(num_train, args):
     print "Regularization factor: %f" % args.reg
 
 
+def write_predictions(ids_file, predictions, outfile):
+    ids = json.load(open(ids_file, 'r'))
+    test_ids = ids["test"]
+    out = open(outfile, 'w')
+
+    for i in xrange(0, len(test_ids)):
+        out.write("%s\t%s\n" % (test_ids[i], predictions[i]))
+
+    out.close()
+
+
 def main(args):
     dataset_json = args.json
     tuning_layers = []
@@ -31,7 +43,6 @@ def main(args):
     max_frames = args.max_frames
     print "Loading VGGNet model. Model type: %s" % args.model
 
-    model = None
     if args.model == 'average':
         model = AverageFrameModel(vgg_path,
                                   output_neurons=4,
@@ -46,7 +57,7 @@ def main(args):
 
     tvt_split = [args.train, args.val, args.test]
     data = read_dataset_tvt(dataset_json, sample_probability=0.5, mode='temporal', max_frames=max_frames,
-                            mean_value=model.mean_bgr, tvt_split=tvt_split)
+                            mean_value=model.mean_bgr, tvt_split=tvt_split, ids_file=args.ids)
     print "Training data shape:", data["train_X"].shape
     print "Test data shape:", data["test_X"].shape
     print "Validation data shape:", data["val_X"].shape
@@ -70,6 +81,8 @@ def main(args):
                     reg=args.reg)
 
     solver.train()
+    test_predictions = solver.predict(data["test_X"], data["test_y"])
+    write_predictions(args.ids, test_predictions, args.out)
     print "--------------------------------------"
     print "---- Training parameters summary -----"
     param_summary(data["train_X"].shape[0], args)
@@ -101,6 +114,9 @@ if __name__ == "__main__":
     parser.add_argument('--batch_size', type=int, default=20, help='Batch size for minibatch training')
     parser.add_argument('--num_epochs', type=int, default=5, help='Number of epochs to train for')
     parser.add_argument('--reg', type=float, default=1e-4, help='Regularization factor')
+    parser.add_argument('--ids', type=str, default='clip_ids.txt', help='File to write ids of clips to.')
+    parser.add_argument('--out', type=str, default='predictions.out', help='File to write predictions to.')
+
     clargs = parser.parse_args()
 
     main(clargs)

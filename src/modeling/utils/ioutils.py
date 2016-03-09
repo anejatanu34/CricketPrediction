@@ -100,7 +100,8 @@ def get_frames(video_num, ball_num, videos, sample_probability, mode, max_frames
 
 
 # todo add support to read in more class types if needed
-def read_dataset_tvt(json_videos, sample_probability=1.0, max_frames=60, mode='sample', class_dist=[0.35,0.25,0.2,0.2], tvt_split=[1,1,1], **kwargs):
+def read_dataset_tvt(json_videos, sample_probability=1.0, max_frames=60, mode='sample',
+                     class_dist=[0.35,0.25,0.2,0.2], tvt_split=[1,1,1], ids_file='clip_ids.txt', **kwargs):
     videos = json.load(open(json_videos, 'r'), encoding='utf-8')
 
     data = {}
@@ -163,7 +164,7 @@ def read_dataset_tvt(json_videos, sample_probability=1.0, max_frames=60, mode='s
         if ctr % 25 == 0 and ctr > 0:
             print "Finished loading test %d balls" % ctr
 
-    ## Get train set
+    # Get train set
     # determining allocation to each class of videos
     data['train_X']  = []
     data['train_y']  = []
@@ -196,7 +197,7 @@ def read_dataset_tvt(json_videos, sample_probability=1.0, max_frames=60, mode='s
                     print "Finished loading train %d balls" % ctr
 
     # print clips ids
-    with open('clip_ids.txt', 'w') as f:
+    with open(ids_file, 'w') as f:
         f.write(json.dumps(clip_ids)+'\n')
 
     # turn all dict values to np.arrays

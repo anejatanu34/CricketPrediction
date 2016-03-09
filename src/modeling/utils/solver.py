@@ -185,6 +185,17 @@ class Solver(object):
         elif self.model_type == 'late':
             return np.take(self.val_X, indices=[0, -1], axis=1), self.val_y
 
+    def predict(self, X, y):
+        test_X = X
+        if self.model_type == 'late':
+            test_X = np.take(X, indices=[0, -1], axis=1)
+
+        loss, predictions = self.test_function(test_X, y)
+        acc = self._compute_accuracy(predictions, y)
+        print "Accuracy on test set: %2.4f" % acc
+
+        return predictions
+
     def iterate_minibatches(self):
         """
         Iterate over minibatches in one epoch
