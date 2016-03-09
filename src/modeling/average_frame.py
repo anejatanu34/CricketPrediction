@@ -23,14 +23,18 @@ def param_summary(num_train, args):
     print "Regularization factor: %f" % args.reg
 
 
-def write_predictions(ids_file, predictions, scores, outfile):
+def write_predictions(model_type, ids_file, predictions, scores, outfile):
     ids = json.load(open(ids_file, 'r'))
     test_ids = ids["test"]
     out = open(outfile, 'w')
 
     for i in xrange(0, len(test_ids)):
-        norm_scores = np.array(scores[i][0])
-        out.write("%s\t%s\t%s\n" % (test_ids[i], predictions[i], "\t".join([str(x) for x in list(norm_scores)])))
+        norm_scores = np.array(scores[i])
+        if model_type == 'average':
+            scores_str = str([str(x) for x in norm_scores])
+        else:
+            scores_str = "\t".join([str(x) for x in list(norm_scores)])
+        out.write("%s\t%s\t%s\n" % (test_ids[i], predictions[i], scores_str))
 
     out.close()
 
@@ -84,7 +88,7 @@ def main(args):
 
     solver.train()
     test_predictions, scores = solver.predict(data["test_X"], data["test_y"])
-    write_predictions(args.ids, test_predictions, scores, args.out)
+    write_predictions(args.model, args.ids, test_predictions, scores, args.out)
     print "--------------------------------------"
     print "---- Training parameters summary -----"
     param_summary(data["train_X"].shape[0], args)

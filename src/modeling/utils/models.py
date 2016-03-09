@@ -121,7 +121,7 @@ class AverageFrameModel(Model):
         if mode == 'train':
             return loss, prediction
         else:
-            return loss, prediction, mean_score
+            return loss, prediction, prediction_scores
 
     def predict(self, frames):
         pass
