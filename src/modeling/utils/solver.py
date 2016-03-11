@@ -92,8 +92,8 @@ class Solver(object):
                 iters += 1
                 if iters == 1:
                     initial_loss, initial_predictions, scores = self.test_function(X_batch,y_batch)
-                    print "(%d/%d) Initial training loss: %f\tTraining accuracy:%2.2f" % (i, self.num_epochs, initial_loss, initial_acc)
                     initial_acc = self._compute_accuracy(initial_predictions, y_batch)
+                    print "(%d/%d) Initial training loss: %f\tTraining accuracy:%2.2f" % (i, self.num_epochs, initial_loss, initial_acc)
                     self.train_loss_history.append((0, initial_loss))
                     self.train_acc_history.append((0, initial_acc))
 
@@ -129,7 +129,7 @@ class Solver(object):
         val_X, val_y = self._get_val_data()
         val_loss, val_predictions, scores = self.test_function(val_X, val_y)
         val_acc = self._compute_accuracy(val_predictions, val_y)
-        print "Validation loss: %f\tTest accuracy:%2.2f" % (val_loss, val_acc)
+        print "Validation loss: %f\tValidation accuracy:%2.2f" % (val_loss, val_acc)
         self.val_acc_history.append((self.num_epochs, val_acc))
 
     def predict(self, X, y):
@@ -224,8 +224,8 @@ class LSTMSolver(Solver):
                  train_X, train_y, val_X, val_y,
                  **kwargs):
 
+        self.seq_length = kwargs.pop('max_frames', 5)
         super(LSTMSolver, self).__init__(model, train_X, train_y, val_X, val_y, **kwargs)
-        self.seq_length = kwargs.get('max_frames', 5)
         self.tuning_layers = ['lstm', 'fc7', 'fc6']
 
     def _init_train_fn(self):
@@ -299,5 +299,5 @@ class LSTMSolver(Solver):
             val_loss += batch_loss
             val_acc += self._compute_accuracy(batch_predictions, val_y_batch)
 
-        print "Validation loss: %f\tTest accuracy:%2.2f" % (val_loss/batches, val_acc/batches)
+        print "Validation loss: %f\tValidation accuracy:%2.2f" % (val_loss/batches, val_acc/batches)
         self.val_acc_history.append((self.num_epochs, val_acc))

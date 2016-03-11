@@ -173,8 +173,8 @@ class LSTMModel(Model):
 
     def __init__(self, path, mean_key='mean value',
                  weights_key='param values', output_neurons=4, class_labels=Outcome.class_labels(),
-                 vocab_size=4000):
-        self.net = build_lstm_classification_model(output_neurons)
+                 vocab_size=4000, max_frames=5):
+        self.net = build_lstm_classification_model(output_neurons, max_frames=max_frames)
         model = pickle.load(open(path))
         self.labels = class_labels
         self.mean_bgr = np.reshape(model[mean_key], (3,1,1))

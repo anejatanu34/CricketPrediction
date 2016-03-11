@@ -100,7 +100,8 @@ def main(args):
                             output_lr=args.output_lr,
                             tune_lr=args.tune_lr,
                             tuning_layers=tuning_layers,
-                            reg=args.reg)
+                            reg=args.reg,
+                            max_frames=args.max_frames)
     else:
         solver = CNNSolver(model,
                            data["train_X"], data["train_y"],

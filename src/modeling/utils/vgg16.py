@@ -131,7 +131,7 @@ def build_late_fusion_model(output_neurons=4):
     return net
 
 
-def build_lstm_classification_model(output_neurons=4, num_frames=5, hidden_units=100):
+def build_lstm_classification_model(output_neurons=4, max_frames=5, hidden_units=100):
     # conv layers identical to VGGNet
     net = {'input': InputLayer((None, 3, 224, 224))}
     net['conv1_1'] = ConvLayer(
@@ -171,7 +171,7 @@ def build_lstm_classification_model(output_neurons=4, num_frames=5, hidden_units
     net['fc7'] = DenseLayer(net['fc6_dropout'], num_units=4096, W=HeNormal(gain='relu'), b=Constant(0.0))
     net['fc7_dropout'] = DropoutLayer(net['fc7'], p=0.5)
     fc_out = net['fc7_dropout'].output_shape
-    net['reshape'] = ReshapeLayer(net['fc7_dropout'], (-1, num_frames, fc_out[1]))
+    net['reshape'] = ReshapeLayer(net['fc7_dropout'], (-1, max_frames, fc_out[1]))
     net['lstm'] = LSTMLayer(net['reshape'], num_units=hidden_units, grad_clipping=MAX_GRAD,
                             nonlinearity=nonlinearities.tanh)
     net['slice_lstm'] = SliceLayer(net['lstm'], -1, 1)
