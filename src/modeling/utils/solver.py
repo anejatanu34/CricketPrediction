@@ -40,10 +40,10 @@ class Solver(object):
         :param tuning_layers: Keys of layers to tune
         """
         self.model = model
-        self.train_X = train_X
-        self.train_y = train_y
-        self.val_X = val_X
-        self.val_y = val_y
+        self.train_X = theano.shared(train_X, borrow=True)
+        self.train_y = theano.shared(train_y, borrow=True)
+        self.val_X = theano.shared(val_X, borrow=True)
+        self.val_y = theano.shared(val_y, borrow=True)
         self.output_lr = output_lr
         self.tuning_lr = tune_lr
         self.lr_decay = lr_decay
@@ -90,12 +90,12 @@ class Solver(object):
             acc = 0
             for X_batch, y_batch in self.iterate_minibatches():
                 iters += 1
-                if iters == 1:
-                    initial_loss, initial_predictions, scores = self.test_function(X_batch,y_batch)
-                    initial_acc = self._compute_accuracy(initial_predictions, y_batch)
-                    print "(%d/%d) Initial training loss: %f\tTraining accuracy:%2.2f" % (i, self.num_epochs, initial_loss, initial_acc)
-                    self.train_loss_history.append((0, initial_loss))
-                    self.train_acc_history.append((0, initial_acc))
+                # if iters == 1:
+                    # initial_loss, initial_predictions, scores = self.test_function(X_batch,y_batch)
+                    # initial_acc = self._compute_accuracy(initial_predictions, y_batch)
+                    # print "(%d/%d) Initial training loss: %f\tTraining accuracy:%2.2f" % (i, self.num_epochs, initial_loss, initial_acc)
+                    # self.train_loss_history.append((0, initial_loss))
+                    # self.train_acc_history.append((0, initial_acc))
 
                 loss, predictions = self.train_function(X_batch, y_batch)
                 acc = self._compute_accuracy(predictions, y_batch)
@@ -229,8 +229,10 @@ class LSTMSolver(Solver):
         self.tuning_layers = ['lstm', 'fc7', 'fc6']
 
     def _init_train_fn(self):
-        input_var = T.tensor4('input')
-        output_var = T.lvector('targets')
+        in_mask = T.lvector()
+        out_mask = T.lvector()
+        input_var = self.train_X[in_mask]
+        output_var = self.train_y[out_mask]
         one_hot = T.extra_ops.to_one_hot(output_var, self.num_classes, dtype='int64')
 
         loss, predictions = self.model.loss(input_var, one_hot)
@@ -252,25 +254,27 @@ class LSTMSolver(Solver):
             layer_params = layer.get_params(trainable=True)
             layer_adam_updates = lasagne.updates.adam(loss, layer_params, learning_rate=self.tuning_lr)
             updates.update(layer_adam_updates)
-        self.train_function = theano.function([input_var, output_var], [loss, predictions], updates=updates)
+        self.train_function = theano.function([in_mask, out_mask], [loss, predictions], updates=updates)
 
     def _init_test_fn(self):
-        input_var = T.tensor4('input')
-        output_var = T.lvector('output')
+        in_mask = T.lvector()
+        out_mask = T.lvector()
+        input_var = self.val_X[in_mask]
+        output_var = self.val_y[out_mask]
         one_hot = T.extra_ops.to_one_hot(output_var, self.num_classes, dtype='int64')
 
         # Compute losses by iterating over the input variable (a 5D tensor where each "row" represents a clip that
         # has some number of frames.
         loss, predictions, scores = self.model.loss(input_var, one_hot, mode='test')
 
-        self.test_function = theano.function([input_var, output_var], [loss, predictions, scores])
+        self.test_function = theano.function([in_mask, out_mask], [loss, predictions, scores])
 
     def iterate_minibatches(self):
         """
         Iterate over minibatches in one epoch
         :return a single batch of the training data
         """
-        num_train = self.train_X.shape[0]
+        num_train = self.train_X.get_value(borrow=True).shape[0]
         num_iterations_per_epoch = num_train/(self.batch_size * self.seq_length)
         indexes = np.arange(num_train/self.seq_length)
         for i in xrange(num_iterations_per_epoch):
@@ -279,14 +283,14 @@ class LSTMSolver(Solver):
             for idx in selected_idx:
                 mask.extend(np.arange(idx*self.seq_length,idx*self.seq_length+self.seq_length))
 
-            yield self.train_X[mask], self.train_y[selected_idx]
+            yield mask, selected_idx
 
     def _get_val_data(self):
-        num_val = (self.val_X.shape[0]/self.seq_length)
+        num_val = (self.val_X.get_value(borrow=True).shape[0]/self.seq_length)
         start = 0
         while start < num_val:
             end = min(start + self.batch_size, num_val)
-            yield self.val_X[start*self.seq_length:end*self.seq_length], self.val_y[start:end]
+            yield np.arange(start*self.seq_length,end*self.seq_length), np.arange(start,end)
             start = end
 
     def _check_val_accuracy(self):
