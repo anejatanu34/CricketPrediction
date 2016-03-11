@@ -96,7 +96,7 @@ class Solver(object):
                 iters += 1
                 if iters == 1:
                     initial_loss, initial_predictions, scores = self.test_function(X_batch,y_batch)
-                    print "(%d/%d) Initial training loss: %f\tTraining accuracy:%2.2f" % (i, self.num_epochs, initial_loss, acc)
+                    print "(%d/%d) Initial training loss: %f\tTraining accuracy:%2.2f" % (i, self.num_epochs, initial_loss, initial_acc)
                     initial_acc = self._compute_accuracy(initial_predictions, y_batch)
                     self.train_loss_history.append((0, initial_loss))
                     self.train_acc_history.append((0, initial_acc))
