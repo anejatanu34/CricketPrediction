@@ -80,11 +80,7 @@ class Solver(object):
 
         iters = 0
         # compute initial validation loss and accuracy
-        val_X, val_y = self._get_val_data()
-        val_loss, val_predictions, scores = self.test_function(val_X, val_y)
-        val_acc = self._compute_accuracy(val_predictions, self.val_y)
-        print "Initial validation loss: %f\tValidation accuracy:%2.2f" % (val_loss, val_acc)
-        self.val_acc_history.append((0, val_acc))
+        self._check_val_accuracy()
 
         print "Started model training"
         start = datetime.datetime.now()
@@ -113,20 +109,12 @@ class Solver(object):
                 self.tuning_lr *= self.lr_decay
 
             if i % 5 == 0:
-                val_X, val_y = self._get_val_data()
-                val_loss, val_predictions, scores = self.test_function(val_X, val_y)
-                val_acc = self._compute_accuracy(val_predictions, self.val_y)
-                print "\tValidation loss: %f\tValidation accuracy:%2.2f" % (val_loss, val_acc)
-                self.val_acc_history.append((i+1, val_acc))
+                self._check_val_accuracy()
 
         end = datetime.datetime.now()
         print "Training took %d seconds" % (end-start).seconds
         if (self.num_epochs - 1) % 5 != 0:
-            val_X, val_y = self._get_val_data()
-            val_loss, val_predictions, scores = self.test_function(val_X, val_y)
-            val_acc = self._compute_accuracy(val_predictions, val_y)
-            print "Final Validation loss: %f\tTest accuracy:%2.2f" % (val_loss, val_acc)
-            self.val_acc_history.append((self.num_epochs, val_acc))
+            self._check_val_accuracy()
 
     def _compute_accuracy(self, predicted_y, true_y):
         return np.array(predicted_y == true_y).mean()
@@ -136,6 +124,13 @@ class Solver(object):
         if self.model_type == 'late':
             return np.take(self.val_X, indices=[0, -1], axis=1), self.val_y
         return self.val_X, self.val_y
+
+    def _check_val_accuracy(self):
+        val_X, val_y = self._get_val_data()
+        val_loss, val_predictions, scores = self.test_function(val_X, val_y)
+        val_acc = self._compute_accuracy(val_predictions, val_y)
+        print "Validation loss: %f\tTest accuracy:%2.2f" % (val_loss, val_acc)
+        self.val_acc_history.append((self.num_epochs, val_acc))
 
     def predict(self, X, y):
         test_X = X
@@ -285,3 +280,24 @@ class LSTMSolver(Solver):
                 mask.extend(np.arange(idx*self.seq_length,idx*self.seq_length+self.seq_length))
 
             yield self.train_X[mask], self.train_y[selected_idx]
+
+    def _get_val_data(self):
+        num_val = (self.val_X.shape[0]/self.seq_length)
+        start = 0
+        while start < num_val:
+            end = min(start + self.batch_size, num_val)
+            yield self.val_X[start*self.seq_length:end*self.seq_length], self.val_y[start:end]
+            start = end
+
+    def _check_val_accuracy(self):
+        val_loss = 0
+        val_acc = 0
+        batches = 0
+        for val_X_batch, val_y_batch in self._get_val_data():
+            batches+=1
+            batch_loss, batch_predictions, batch_scores = self.test_function(val_X_batch, val_y_batch)
+            val_loss += batch_loss
+            val_acc += self._compute_accuracy(batch_predictions, val_y_batch)
+
+        print "Validation loss: %f\tTest accuracy:%2.2f" % (val_loss/batches, val_acc/batches)
+        self.val_acc_history.append((self.num_epochs, val_acc))
