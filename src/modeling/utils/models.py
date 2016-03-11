@@ -1,6 +1,6 @@
 __author__ = 'anushabala'
 
-from .vgg16 import build_model, build_late_fusion_model
+from .vgg16 import build_model, build_late_fusion_model, build_lstm_classification_model
 import pickle
 import lasagne
 import numpy as np
@@ -166,3 +166,35 @@ class LateFusionModel(Model):
             return loss, prediction[0]
         else:
             return loss, prediction[0], prediction_scores
+
+
+class LSTMModel(Model):
+    merge_fc_layer = 'fc6'
+
+    def __init__(self, path, mean_key='mean value',
+                 weights_key='param values', output_neurons=4, class_labels=Outcome.class_labels(),
+                 vocab_size=4000):
+        self.net = build_lstm_classification_model(output_neurons)
+        model = pickle.load(open(path))
+        self.labels = class_labels
+        self.mean_bgr = np.reshape(model[mean_key], (3,1,1))
+        self.model_weights = model[weights_key]
+        self.tuning_layers = ['fc7', 'fc6']
+        self.vocab_size = vocab_size
+        self._set_model_params()
+
+    def _set_model_params(self):
+        """
+        Set params according to VGG16 pretrained weights for all layers except output layer
+        """
+        last_layer = self.net['fc7_dropout']
+        lasagne.layers.set_all_param_values(last_layer, self.model_weights[:-2])
+
+    def loss(self, X, y, mode='train'):
+        prediction_scores = self.get_output(X, mode=mode)
+        loss = lasagne.objectives.categorical_crossentropy(prediction_scores, y)
+        predictions = T.argmax(prediction_scores, axis=1)
+
+        if mode == 'train':
+            return loss.mean(), predictions
+        return loss.mean(), predictions, prediction_scores
