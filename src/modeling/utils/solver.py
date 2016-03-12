@@ -120,16 +120,28 @@ class Solver(object):
         return np.array(predicted_y == true_y).mean()
 
     def _get_val_data(self):
-        # todo maybe allow subsampling
-        if self.model_type == 'late':
-            return np.take(self.val_X, indices=[0, -1], axis=1), self.val_y
-        return self.val_X, self.val_y
+        num_val = self.val_X.shape[0]
+        start = 0
+        while start < num_val:
+            end = min(start+ self.batch_size, num_val)
+            if self.model_type == 'late':
+                yield np.take(self.val_X[start:end], indices=[0,-1],axis=1), self.val_y
+            else:
+                yield self.val_X[start:end], self.val_y[start:end]
+            start = end
+
 
     def _check_val_accuracy(self):
-        val_X, val_y = self._get_val_data()
-        val_loss, val_predictions, scores = self.test_function(val_X, val_y)
-        val_acc = self._compute_accuracy(val_predictions, val_y)
-        print "Validation loss: %f\tValidation accuracy:%2.2f" % (val_loss, val_acc)
+        val_acc = 0
+        num_val = self.val_X.shape[0]
+        val_loss = 0
+        for val_X_batch, val_y_batch in self._get_val_data():
+            batch_loss, val_predictions, scores = self.test_function(val_X_batch, val_y_batch)
+            val_loss += batch_loss * self.batch_size
+            batch_acc = self._compute_accuracy(val_predictions, val_y_batch)
+            val_acc += batch_acc * self.batch_size
+
+        print "Validation loss: %f\tValidation accuracy:%2.2f" % (val_loss/num_val, val_acc/num_val)
         self.val_acc_history.append((self.num_epochs, val_acc))
 
     def predict(self, X, y):
@@ -292,12 +304,12 @@ class LSTMSolver(Solver):
     def _check_val_accuracy(self):
         val_loss = 0
         val_acc = 0
-        batches = 0
+        num_val = self.val_X.shape[0]/self.seq_length
         for val_X_batch, val_y_batch in self._get_val_data():
-            batches+=1
             batch_loss, batch_predictions, batch_scores = self.test_function(val_X_batch, val_y_batch)
-            val_loss += batch_loss
-            val_acc += self._compute_accuracy(batch_predictions, val_y_batch)
+            val_loss += batch_loss * self.batch_size
+            batch_acc = self._compute_accuracy(batch_predictions, val_y_batch)
+            val_acc += batch_acc * self.batch_size
 
-        print "Validation loss: %f\tValidation accuracy:%2.2f" % (val_loss/batches, val_acc/batches)
+        print "Validation loss: %f\tValidation accuracy:%2.2f" % (val_loss/num_val, val_acc/num_val)
         self.val_acc_history.append((self.num_epochs, val_acc))
