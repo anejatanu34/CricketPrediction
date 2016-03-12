@@ -130,7 +130,6 @@ class Solver(object):
                 yield self.val_X[start:end], self.val_y[start:end]
             start = end
 
-
     def _check_val_accuracy(self):
         val_acc = 0
         num_val = self.val_X.shape[0]
@@ -145,13 +144,25 @@ class Solver(object):
         self.val_acc_history.append((self.num_epochs, val_acc))
 
     def predict(self, X, y):
-        test_X = X
-        if self.model_type == 'late':
-            test_X = np.take(X, indices=[0, -1], axis=1)
+        predictions = []
+        prediction_scores = []
+        num_test = X.shape[0]
+        start = 0
+        test_acc = 0
+        while start < num_test:
+            end = min(start+self.batch_size, num_test)
+            test_X = X[start:end]
+            if self.model_type == 'late':
+                test_X = np.take(X[start:end], indices=[0, -1], axis=1)
+            test_y = y[start:end]
+            batch_loss, batch_predictions, batch_scores = self.test_function(test_X, test_y)
+            predictions.extend(list(batch_predictions))
+            prediction_scores.extend(batch_scores)
+            batch_acc = self._compute_accuracy(batch_predictions, test_y)
+            test_acc += batch_acc * self.batch_size
 
-        loss, predictions, prediction_scores = self.test_function(test_X, y)
-        acc = self._compute_accuracy(predictions, y)
-        print "Accuracy on test set: %2.4f" % acc
+            start = end
+        print "Accuracy on test set: %2.4f" % (test_acc/num_test)
         return predictions, prediction_scores
 
     def iterate_minibatches(self):
@@ -292,6 +303,26 @@ class LSTMSolver(Solver):
                 mask.extend(np.arange(idx*self.seq_length,idx*self.seq_length+self.seq_length))
 
             yield self.train_X[mask], self.train_y[selected_idx]
+
+    def predict(self, X, y):
+        predictions = []
+        prediction_scores = []
+        num_test = X.shape[0]/self.seq_length
+        start = 0
+        test_acc = 0
+        while start < num_test:
+            end = min(start+self.batch_size, num_test)
+            test_X = X[start*self.seq_length:end*self.seq_length]
+            test_y = y[start:end]
+            batch_loss, batch_predictions, batch_scores = self.test_function(test_X, test_y)
+            predictions.extend(list(batch_predictions))
+            prediction_scores.extend(batch_scores)
+            batch_acc = self._compute_accuracy(batch_predictions, test_y)
+            test_acc += batch_acc * self.batch_size
+
+            start = end
+        print "Accuracy on test set: %2.4f" % (test_acc/num_test)
+        return predictions, prediction_scores
 
     def _get_val_data(self):
         num_val = (self.val_X.shape[0]/self.seq_length)
