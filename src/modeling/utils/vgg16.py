@@ -168,10 +168,8 @@ def build_lstm_classification_model(output_neurons=4, max_frames=5, hidden_units
 
     net['fc6'] = DenseLayer(net['pool5'],  num_units=4096, W=HeNormal(gain='relu'), b=Constant(0.0))
     net['fc6_dropout'] = DropoutLayer(net['fc6'], p=0.5)
-    net['fc7'] = DenseLayer(net['fc6_dropout'], num_units=4096, W=HeNormal(gain='relu'), b=Constant(0.0))
-    net['fc7_dropout'] = DropoutLayer(net['fc7'], p=0.5)
-    fc_out = net['fc7_dropout'].output_shape
-    net['reshape'] = ReshapeLayer(net['fc7_dropout'], (-1, max_frames, fc_out[1]))
+    fc_out = net['fc6_dropout'].output_shape
+    net['reshape'] = ReshapeLayer(net['fc6_dropout'], (-1, max_frames, fc_out[1]))
     net['lstm'] = LSTMLayer(net['reshape'], num_units=hidden_units, grad_clipping=MAX_GRAD,
                             nonlinearity=nonlinearities.tanh)
     net['slice_lstm'] = SliceLayer(net['lstm'], -1, 1)
