@@ -57,7 +57,8 @@ def main(args):
     elif args.model_type == 'late':
         model = LateFusionModel(vgg_path, output_neurons=4)
     elif args.model_type == 'lstm':
-        model = LSTMModel(vgg_path)
+        model = LSTMModel(vgg_path, hidden_units=args.hidden, last_layer=args.last_layer,
+                          max_frames=args.max_frames)
     else:
         raise ValueError("Model type must be one of 'average' and 'late'")
 
@@ -154,6 +155,9 @@ if __name__ == "__main__":
     parser.add_argument('--reg', type=float, default=1e-4, help='Regularization factor')
     parser.add_argument('--ids', type=str, default='clip_ids.txt', help='File to write ids of clips to.')
     parser.add_argument('--out', type=str, default='predictions.out', help='File to write predictions to.')
+    parser.add_argument('--hidden', type=int, default=100, help='(LSTM only) number of hidden units')
+    parser.add_argument('--last_layer', type=str, default='fc7', choices=['fc6', 'fc7'],
+                        help='Key for layer that feeds into LSTM layer')
 
     clargs = parser.parse_args()
 
