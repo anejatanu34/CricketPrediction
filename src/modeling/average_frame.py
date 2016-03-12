@@ -97,7 +97,6 @@ def main(args):
         elif args.last_layer == 'fc7':
             tuning_layers.append('fc7')
             tuning_layers.append('fc6')
-
         solver = LSTMSolver(model,
                             data["train_X"], data["train_y"],
                             val_X=data["val_X"], val_y=data["val_y"],
@@ -105,7 +104,7 @@ def main(args):
                             num_epochs=args.num_epochs,
                             batch_size=batch_size,
                             output_lr=args.output_lr,
-                            tune_lr=args.tune_lr,
+                            tune_lr=args.output_lr,
                             tuning_layers=tuning_layers,
                             reg=args.reg,
                             max_frames=args.max_frames)

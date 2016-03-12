@@ -173,7 +173,7 @@ def build_lstm_classification_model(output_neurons=4, max_frames=5, hidden_units
     if last_layer == 'fc7':
         print "Last layer before LSTM is fc7"
         net['fc7'] = DenseLayer(net['fc6_dropout'],  num_units=4096, W=HeNormal(gain='relu'), b=Constant(0.0))
-        net['fc7_dropout'] = DropoutLayer(net['fc6'], p=0.5)
+        net['fc7_dropout'] = DropoutLayer(net['fc7'], p=0.5)
         fc_out = net['fc7_dropout'].output_shape
         reshape_in = net['fc7_dropout']
     else:
