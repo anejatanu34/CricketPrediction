@@ -9,9 +9,6 @@ import sys
 
 tensor5 = T.TensorType('floatX', (False,) * 5)
 
-# todo implement masks
-# todo add regularization
-
 
 class Solver(object):
     """
@@ -93,14 +90,14 @@ class Solver(object):
                 if iters == 1:
                     initial_loss, initial_predictions, scores = self.test_function(X_batch,y_batch)
                     initial_acc = self._compute_accuracy(initial_predictions, y_batch)
-                    print "(%d/%d) Initial training loss: %f\tTraining accuracy:%2.2f" % (i, self.num_epochs, initial_loss, initial_acc)
+                    print "(%d/%d) Initial training loss: %f\tTraining accuracy:%2.4f" % (i, self.num_epochs, initial_loss, initial_acc)
                     self.train_loss_history.append((0, initial_loss))
                     self.train_acc_history.append((0, initial_acc))
 
                 loss, predictions = self.train_function(X_batch, y_batch)
                 acc = self._compute_accuracy(predictions, y_batch)
 
-            print "(%d/%d) Training loss: %f\tTraining accuracy:%2.2f" % (i+1, self.num_epochs, loss, acc)
+            print "(%d/%d) Training loss: %f\tTraining accuracy:%2.4f" % (i+1, self.num_epochs, loss, acc)
             self.train_loss_history.append((i+1, loss))
             self.train_acc_history.append((i+1, acc))
 
@@ -113,6 +110,7 @@ class Solver(object):
 
         end = datetime.datetime.now()
         print "Training took %d seconds" % (end-start).seconds
+        self._check_train_accuracy()
         if (self.num_epochs - 1) % 5 != 0:
             self._check_val_accuracy()
 
@@ -125,10 +123,32 @@ class Solver(object):
         while start < num_val:
             end = min(start+ self.batch_size, num_val)
             if self.model_type == 'late':
-                yield np.take(self.val_X[start:end], indices=[0,-1],axis=1), self.val_y
+                yield np.take(self.val_X[start:end], indices=[0,-1],axis=1), self.val_y[start:end]
             else:
                 yield self.val_X[start:end], self.val_y[start:end]
             start = end
+
+    def _get_train_data(self):
+        num_train = self.train_X.shape[0]
+        start = 0
+        while start < num_train:
+            end = min(start+ self.batch_size, num_train)
+            if self.model_type == 'late':
+                yield np.take(self.train_X[start:end], indices=[0,-1],axis=1), self.train_y[start:end]
+            else:
+                yield self.train_X[start:end], self.train_y[start:end]
+            start = end
+
+    def _check_train_accuracy(self):
+        train_acc = 0
+        num_train = self.train_X.shape[0]
+        for X_batch, y_batch in self._get_train_data():
+            batch_loss, train_predictions, scores = self.test_function(X_batch, y_batch)
+            batch_acc = self._compute_accuracy(train_predictions, y_batch)
+            train_acc += batch_acc * self.batch_size
+
+        print "Accuracy on complete training set: %2.4f" % (train_acc/num_train)
+        self.val_acc_history.append((self.num_epochs, train_acc))
 
     def _check_val_accuracy(self):
         val_acc = 0
@@ -140,7 +160,7 @@ class Solver(object):
             batch_acc = self._compute_accuracy(val_predictions, val_y_batch)
             val_acc += batch_acc * self.batch_size
 
-        print "Validation loss: %f\tValidation accuracy:%2.2f" % (val_loss/num_val, val_acc/num_val)
+        print "Validation loss: %f\tValidation accuracy:%2.4f" % (val_loss/num_val, val_acc/num_val)
         self.val_acc_history.append((self.num_epochs, val_acc))
 
     def predict(self, X, y):
@@ -238,6 +258,12 @@ class CNNSolver(Solver):
                                                              outputs_info=None,
                                                              sequences=[input_var, one_hot])
         loss = losses.mean()
+        output_layer = self.model.layer('fc8')
+        l2_penalty = regularization.regularize_layer_params(output_layer, regularization.l2) * self.reg * 0.5
+        for layer_key in self.tuning_layers:
+            layer = self.model.layer(layer_key)
+            l2_penalty += regularization.regularize_layer_params(layer, regularization.l2) * self.reg * 0.5
+        loss += l2_penalty
 
         self.test_function = theano.function([input_var, output_var], [loss, predictions, scores], updates=updates)
 
@@ -284,6 +310,13 @@ class LSTMSolver(Solver):
         # Compute losses by iterating over the input variable (a 5D tensor where each "row" represents a clip that
         # has some number of frames.
         loss, predictions, scores = self.model.loss(input_var, one_hot, mode='test')
+        output_layer = self.model.layer('fc8')
+        l2_penalty = regularization.regularize_layer_params(output_layer, regularization.l2) * self.reg * 0.5
+
+        for layer_key in self.tuning_layers:
+            layer = self.model.layer(layer_key)
+            l2_penalty += regularization.regularize_layer_params(layer, regularization.l2) * self.reg * 0.5
+        loss += l2_penalty
 
         self.test_function = theano.function([input_var, output_var], [loss, predictions, scores])
 
@@ -343,3 +376,22 @@ class LSTMSolver(Solver):
 
         print "Validation loss: %f\tValidation accuracy:%2.2f" % (val_loss/num_val, val_acc/num_val)
         self.val_acc_history.append((self.num_epochs, val_acc))
+
+    def _get_train_data(self):
+        num_train = self.train_X.shape[0]/self.seq_length
+        start = 0
+        while start < num_train:
+            end = min(start+ self.batch_size, num_train)
+            yield self.train_X[start*self.seq_length:end*self.seq_length], self.train_y[start:end]
+            start = end
+
+    def _check_train_accuracy(self):
+        train_acc = 0
+        num_train = self.train_X.shape[0]/self.seq_length
+        for X_batch, y_batch in self._get_train_data():
+            batch_loss, train_predictions, scores = self.test_function(X_batch, y_batch)
+            batch_acc = self._compute_accuracy(train_predictions, y_batch)
+            train_acc += batch_acc * self.batch_size
+
+        print "Accuracy on complete training set: %2.4f" % (train_acc/num_train)
+        self.val_acc_history.append((self.num_epochs, train_acc))
