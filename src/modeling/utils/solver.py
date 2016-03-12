@@ -225,7 +225,8 @@ class LSTMSolver(Solver):
                  **kwargs):
 
         self.seq_length = kwargs.pop('max_frames', 5)
-        self.tuning_layers = ['lstm', 'fc6']
+        if 'tuning_layers' not in kwargs.keys():
+            kwargs['tuning_layers'] = ['lstm', 'fc7', 'fc6']
         super(LSTMSolver, self).__init__(model, train_X, train_y, val_X, val_y, **kwargs)
 
     def _init_train_fn(self):
