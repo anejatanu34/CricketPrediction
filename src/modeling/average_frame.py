@@ -6,7 +6,6 @@ from utils.solver import CNNSolver, LSTMSolver
 import datetime
 import json
 import numpy as np
-import sys
 
 DEFAULT_MODEL_PATH = 'vgg16.pkl'
 model_types = ['average', 'late', 'lstm']
@@ -57,7 +56,8 @@ def main(args):
     elif args.model_type == 'late':
         model = LateFusionModel(vgg_path, output_neurons=4)
     elif args.model_type == 'lstm':
-        model = LSTMModel(vgg_path)
+        model = LSTMModel(vgg_path, hidden_units=args.hidden, last_layer=args.last_layer,
+                          max_frames=args.max_frames)
     else:
         raise ValueError("Model type must be one of 'average' and 'late'")
 
@@ -91,6 +91,13 @@ def main(args):
     batch_size = min(args.batch_size, data["train_X"].shape[0])
     print "--------------------------------------"
     if args.model_type == 'lstm':
+        tuning_layers = ['lstm']
+        if args.last_layer == 'fc6':
+            tuning_layers.append('fc6')
+        elif args.last_layer == 'fc7':
+            tuning_layers.append('fc7')
+            tuning_layers.append('fc6')
+
         solver = LSTMSolver(model,
                             data["train_X"], data["train_y"],
                             val_X=data["val_X"], val_y=data["val_y"],
@@ -154,6 +161,9 @@ if __name__ == "__main__":
     parser.add_argument('--reg', type=float, default=1e-4, help='Regularization factor')
     parser.add_argument('--ids', type=str, default='clip_ids.txt', help='File to write ids of clips to.')
     parser.add_argument('--out', type=str, default='predictions.out', help='File to write predictions to.')
+    parser.add_argument('--hidden', type=int, default=100, help='(LSTM only) number of hidden units')
+    parser.add_argument('--last_layer', type=str, default='fc7', choices=['fc6', 'fc7'],
+                        help='Key for layer that feeds into LSTM layer')
 
     clargs = parser.parse_args()
 

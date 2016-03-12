@@ -138,7 +138,6 @@ class LateFusionModel(Model):
         self.labels = class_labels
         self.mean_bgr = np.reshape(model[mean_key], (3,1,1))
         self.model_weights = model[weights_key]
-        self.tuning_layers = ['fc7', 'fc6']
         self._set_model_params()
 
     def _set_model_params(self):
@@ -173,13 +172,14 @@ class LSTMModel(Model):
 
     def __init__(self, path, mean_key='mean value',
                  weights_key='param values', output_neurons=4, class_labels=Outcome.class_labels(),
-                 vocab_size=4000, max_frames=5):
-        self.net = build_lstm_classification_model(output_neurons, max_frames=max_frames)
+                 vocab_size=4000, max_frames=5, hidden_units=100, last_layer='fc7'):
+        self.last_layer_key = last_layer
+        self.net = build_lstm_classification_model(output_neurons, max_frames=max_frames,
+                                                   hidden_units=hidden_units, last_layer=last_layer)
         model = pickle.load(open(path))
         self.labels = class_labels
         self.mean_bgr = np.reshape(model[mean_key], (3,1,1))
         self.model_weights = model[weights_key]
-        self.tuning_layers = ['fc7', 'fc6']
         self.vocab_size = vocab_size
         self._set_model_params()
 
@@ -187,8 +187,13 @@ class LSTMModel(Model):
         """
         Set params according to VGG16 pretrained weights for all layers except output layer
         """
-        last_layer = self.net['fc7_dropout']
-        lasagne.layers.set_all_param_values(last_layer, self.model_weights[:-2])
+        last_layer = self.net[self.last_layer_key]
+        if self.last_layer_key == 'fc7':
+            lasagne.layers.set_all_param_values(last_layer, self.model_weights[:-2])
+        elif self.last_layer_key == 'fc6':
+            lasagne.layers.set_all_param_values(last_layer, self.model_weights[:-4])
+        else:
+            raise ValueError('Last LSTM model layer must be one of fc7 or fc6')
 
     def loss(self, X, y, mode='train'):
         prediction_scores = self.get_output(X, mode=mode)
