@@ -6,7 +6,6 @@ from utils.solver import CNNSolver, LSTMSolver
 import datetime
 import json
 import numpy as np
-import sys
 
 DEFAULT_MODEL_PATH = 'vgg16.pkl'
 model_types = ['average', 'late', 'lstm']
@@ -92,6 +91,13 @@ def main(args):
     batch_size = min(args.batch_size, data["train_X"].shape[0])
     print "--------------------------------------"
     if args.model_type == 'lstm':
+        tuning_layers = ['lstm']
+        if args.last_layer == 'fc6':
+            tuning_layers.append('fc6')
+        elif args.last_layer == 'fc7':
+            tuning_layers.append('fc7')
+            tuning_layers.append('fc6')
+
         solver = LSTMSolver(model,
                             data["train_X"], data["train_y"],
                             val_X=data["val_X"], val_y=data["val_y"],
