@@ -1,6 +1,6 @@
 __author__ = 'anushabala'
 
-from .vgg16 import build_model, build_late_fusion_model, build_lstm_classification_model
+from .vgg16 import *
 import pickle
 import lasagne
 import numpy as np
@@ -203,3 +203,62 @@ class LSTMModel(Model):
         if mode == 'train':
             return loss.mean(), predictions
         return loss.mean(), predictions, prediction_scores
+
+
+class LSTMGenerationModel(Model):
+    merge_fc_layer = 'fc6'
+
+    def __init__(self, path, mean_key='mean value',
+                 weights_key='param values', output_neurons=4, class_labels=Outcome.class_labels(),
+                 max_frames=5, hidden_units=100, last_layer='fc7', seq_length=15):
+        self.last_layer_key = last_layer
+        self.output_neurons = output_neurons
+        self.max_frames = max_frames
+        self.hidden_units = hidden_units
+        self.last_layer = last_layer
+        model = pickle.load(open(path))
+        self.labels = class_labels
+        self.mean_bgr = np.reshape(model[mean_key], (3,1,1))
+        self.model_weights = model[weights_key]
+        self.vocab_size = 2000
+        self.seq_length = seq_length
+
+    def initialize_model(self, vocab_size=2000):
+        self.vocab_size = vocab_size
+        self.net = build_lstm_commentary_model(self.output_neurons, max_frames=self.max_frames,
+                                               hidden_units=self.hidden_units, last_layer=self.last_layer,
+                                               vocab_size=self.vocab_size, seq_length=self.seq_length)
+        self._set_model_params()
+
+    def _set_model_params(self):
+        """
+        Set params according to VGG16 pretrained weights for all layers except output layer
+        """
+        last_layer = self.net[self.last_layer_key]
+        if self.last_layer_key == 'fc7':
+            lasagne.layers.set_all_param_values(last_layer, self.model_weights[:-2])
+        elif self.last_layer_key == 'fc6':
+            lasagne.layers.set_all_param_values(last_layer, self.model_weights[:-4])
+        else:
+            raise ValueError('Last LSTM model layer must be one of fc7 or fc6')
+
+    def loss(self, X, y, mask, mode='train'):
+        if mode == 'train':
+            scores = lasagne.layers.get_output(self.net['prob'],
+                                               inputs={self.net["input"]:X,
+                                                       self.net["mask_dec"]:mask},
+                                               deterministic=True)
+        else:
+            scores = lasagne.layers.get_output(self.net['prob'],
+                                               inputs={self.net["input"]:X,
+                                                       self.net["mask_dec"]:mask},
+                                               deterministic=False)
+        loss = lasagne.objectives.categorical_crossentropy(scores, T.flatten(y))
+        loss = loss * T.flatten(mask)
+        predictions_flattened = T.argmax(scores, axis=1)
+        predictions = T.reshape(predictions_flattened, newshape=(-1, self.seq_length))
+
+        if mode =='train':
+            return loss.mean(), predictions
+        else:
+            return loss.mean(), predictions, scores

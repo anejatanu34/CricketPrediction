@@ -7,6 +7,8 @@ import json
 from preprocess import preprocess_frames
 import matplotlib.pyplot as plt
 import scipy
+import string
+from collections import defaultdict
 
 dir_pattern = r'ball([0-9]+)'
 
@@ -69,9 +71,10 @@ def sample_frames(frames, max_frames):
     return np.array(frames)
 
 
-def read_cricket_labels(innings1_file, innings2_file):
+def read_cricket_labels(innings1_file, innings2_file, read_commentary=False):
     labels = []
     illegal_balls = []
+    commentary = []
     ball_num = 1
     for innings in [innings1_file, innings2_file]:
         infile = open(innings, 'r')
@@ -80,11 +83,18 @@ def read_cricket_labels(innings1_file, innings2_file):
             detailed_outcome = cols[4]
             if 'wide' in detailed_outcome or 'no ball' in detailed_outcome:
                 illegal_balls.append(ball_num)
-
-            outcome = Outcome.get_label_from_commentary(cols[-1])
+            if not read_commentary:
+                outcome = Outcome.get_label_from_commentary(cols[-1])
+            else:
+                outcome = Outcome.get_label_from_commentary(cols[-2])
             labels.append(outcome)
+            if read_commentary:
+                text = cols[-1].strip().strip("\"")
+                commentary.append((cols[2], cols[3], text))
             ball_num += 1
-    return labels, illegal_balls
+    if not read_commentary:
+        return labels, illegal_balls
+    return labels, illegal_balls, commentary
 
 
 def get_frames(video_num, ball_num, videos, sample_probability, mode, max_frames, **kwargs):
@@ -99,6 +109,67 @@ def get_frames(video_num, ball_num, videos, sample_probability, mode, max_frames
     return raw_frames, frames
 
 
+def get_vocab(all_commentary, threshold=50):
+    counts = defaultdict(int)
+
+    for text in all_commentary:
+        text = text.strip().lower()
+        text = text.translate(string.maketrans("",""), string.punctuation)
+        text = text.split()
+        for word in text:
+            counts[word] += 1
+
+    vocab = set()
+    for (word, freq) in counts.iteritems():
+        if freq > threshold:
+            vocab.add(word)
+
+    vocab = list(vocab)
+    vocab.append('BATSMAN')
+    vocab.append('BOWLER')
+    vocab.append('UNK')
+    vocab.append('END')
+
+    return vocab
+
+
+def process_commentary(commentary_info, max_seq_length=15):
+    processed_commentary = []
+    masks = []
+    all_commentary = [c[2] for c in commentary_info]
+    vocab = get_vocab(all_commentary)
+    word_to_idx = {vocab[i]: i for i in xrange(len(vocab))}
+    idx_to_word = {i: vocab[i] for i in xrange(len(vocab))}
+
+    for (bowler, batsman, commentary) in commentary_info:
+        bowler = bowler.lower()
+        batsman = batsman.lower()
+        commentary = commentary.strip().lower()
+        commentary = commentary.translate(string.maketrans("",""), string.punctuation)
+        commentary = commentary.replace(bowler, "BOWLER")
+        commentary = commentary.replace(batsman, "BATSMAN")
+        if commentary.find('.') > 0:
+            commentary = commentary[0:commentary.find('.')] # only use the first sentence for now
+        words = commentary.split()
+        wordvec = []
+        for word in words:
+            if word not in vocab:
+                wordvec.append(word_to_idx['UNK'])
+            else:
+                wordvec.append(word_to_idx[word])
+        if len(wordvec) > max_seq_length - 1:
+            wordvec = wordvec[:max_seq_length-1]
+        wordvec.append(word_to_idx['END'])
+        mask = [1] * len(wordvec)
+        while len(wordvec) < max_seq_length:
+            mask.append(0)
+            wordvec.append(0)
+        masks.append(mask)
+        processed_commentary.append(wordvec)
+
+    return processed_commentary, masks, word_to_idx, idx_to_word, vocab
+
+
 # todo add support to read in more class types if needed
 def read_dataset_tvt(json_videos, sample_probability=1.0, max_frames=60, mode='sample',
                      class_dist=[0.35,0.25,0.2,0.2], tvt_split=[1,1,1], ids_file='clip_ids.txt', **kwargs):
@@ -106,7 +177,6 @@ def read_dataset_tvt(json_videos, sample_probability=1.0, max_frames=60, mode='s
 
     data = {}
     clip_ids = {} 
-
     # collect all video-ball labels
     labels_mapping = [[], [], []] # [[video_num], [ball_num], [label]]
     video_num = 1
@@ -145,8 +215,8 @@ def read_dataset_tvt(json_videos, sample_probability=1.0, max_frames=60, mode='s
         ctr += 1
         if ctr % 25 == 0 and ctr > 0:
             print "Finished loading val %d balls" % ctr
-    
-    # Get test set    
+
+    # Get test set
     data['test_X']  = []
     data['test_y']  = []
     clip_ids['test'] = []
@@ -204,6 +274,129 @@ def read_dataset_tvt(json_videos, sample_probability=1.0, max_frames=60, mode='s
     for k in data.keys():
         data[k] = np.array(data[k])
     return data
+
+
+# todo add support to read in more class types if needed
+def read_dataset_commentary(json_videos, sample_probability=1.0, max_frames=60, mode='sample',
+                     class_dist=[0.35,0.25,0.2,0.2], tvt_split=[1,1,1], ids_file='clip_ids.txt',
+                            max_seq_length=15, **kwargs):
+    videos = json.load(open(json_videos, 'r'), encoding='utf-8')
+
+    data = {}
+    clip_ids = {}
+    # collect all video-ball labels
+    labels_mapping = [[], [], [], [], []] # [[video_num], [ball_num], [label]]
+    video_num = 1
+    for video in videos:
+        clips_dir = video["clips"]
+        all_clips = os.listdir(clips_dir)
+        all_clips_nums = [int(xx[4:]) for xx in all_clips if 'ball' in xx]
+        innings1 = video["innings1"]
+        innings2 = video["innings2"]
+        labels, illegal_balls, commentary = read_cricket_labels(innings1, innings2, read_commentary=True)
+        clip_ctr = 0
+        for ll in range(len(labels)): # also ball_num
+            if ll+1 not in all_clips_nums:
+                continue
+            labels_mapping[0].append(video_num)
+            labels_mapping[1].append(ll+1)
+            labels_mapping[2].append(labels[ll])
+            labels_mapping[3].extend(commentary)
+            clip_ctr += 1
+        video_num += 1
+
+    commentary, masks, word_to_idx, idx_to_word, vocab = process_commentary(labels_mapping[3], max_seq_length=max_seq_length)
+    labels_mapping[3] = commentary
+    labels_mapping[4] = masks
+    # for i in xrange(10):
+    #     print labels_mapping[3][i], labels_mapping[4][i]
+    ctr = 0
+    # Get val set
+    data['val_X']  = []
+    data['val_y']  = []
+    data['val_mask'] = []
+    clip_ids['val'] = []
+    for i in range(tvt_split[1]):
+        ind = np.random.randint(0,len(labels_mapping[0]))
+        raw_frames, frames = get_frames(labels_mapping[0][ind], labels_mapping[1][ind], videos, sample_probability, mode, max_frames, **kwargs)
+        data['val_X'].append(frames)
+        data['val_y'].append(labels_mapping[3][ind])
+        data['val_mask'].append(labels_mapping[4][ind])
+        clip_ids['val'].append(str(labels_mapping[0][ind])+','+str(labels_mapping[1][ind])+','+str(labels_mapping[3][ind]))
+        del labels_mapping[0][ind]
+        del labels_mapping[1][ind]
+        del labels_mapping[2][ind]
+        del labels_mapping[3][ind]
+        del labels_mapping[4][ind]
+        del frames
+        ctr += 1
+        if ctr % 25 == 0 and ctr > 0:
+            print "Finished loading val %d balls" % ctr
+
+    # Get test set
+    data['test_X']  = []
+    data['test_y']  = []
+    data['test_mask'] = []
+    clip_ids['test'] = []
+    for i in range(tvt_split[2]):
+        ind = np.random.randint(0,len(labels_mapping[0]))
+        raw_frames, frames = get_frames(labels_mapping[0][ind], labels_mapping[1][ind], videos, sample_probability, mode, max_frames, **kwargs)
+        data['test_X'].append(frames)
+        data['test_y'].append(labels_mapping[3][ind])
+        data['test_mask'].append(labels_mapping[4][ind])
+        clip_ids['test'].append(str(labels_mapping[0][ind])+','+str(labels_mapping[1][ind])+','+str(labels_mapping[3][ind]))
+        del labels_mapping[0][ind]
+        del labels_mapping[1][ind]
+        del labels_mapping[2][ind]
+        del labels_mapping[3][ind]
+        del labels_mapping[4][ind]
+        del frames
+        ctr += 1
+        if ctr % 25 == 0 and ctr > 0:
+            print "Finished loading test %d balls" % ctr
+
+    # Get train set
+    # determining allocation to each class of videos
+    data['train_X']  = []
+    data['train_y']  = []
+    data['train_mask'] = []
+    clip_ids['train'] = []
+    counts = (tvt_split[0] * np.array(class_dist)).astype(int)
+    if np.sum(counts) < tvt_split[0]:
+        counts[:tvt_split[0]-np.sum(counts)] += 1
+
+    # Add video-ball clips
+    for cc in range(len(counts)):
+        inds = [xx for xx in range(len(labels_mapping[2])) if labels_mapping[2][xx]==cc] # index of all 0/1/2/3s
+        np.random.shuffle(inds)
+
+        # number of repeats for each ball
+        num_repeats = [0 for ii in range(len(inds))]
+        for ii in range(counts[cc]):
+            num_repeats[ii%len(inds)] += 1
+        # add video-ball data
+        for ii in range(len(inds)):
+            ind = inds[ii]
+            for rr in range(num_repeats[ii]):
+                raw_frames, frames = get_frames(labels_mapping[0][ind], labels_mapping[1][ind], videos, sample_probability, mode, max_frames, **kwargs)
+                data['train_X'].append(frames)
+                data['train_y'].append(labels_mapping[3][ind])
+                data['train_mask'].append(labels_mapping[4][ind])
+                clip_ids['train'].append(str(labels_mapping[0][ind])+','+str(labels_mapping[1][ind])+','+str(labels_mapping[3][ind]))
+                del frames
+
+                ctr += 1
+                if ctr % 25 == 0 and ctr > 0:
+                    print "Finished loading train %d balls" % ctr
+
+    # print clips ids
+    with open(ids_file, 'w') as f:
+        f.write(json.dumps(clip_ids)+'\n')
+
+    # turn all dict values to np.arrays
+    for k in data.keys():
+        data[k] = np.array(data[k])
+    return data, word_to_idx, idx_to_word, vocab
 
 
 def read_dataset(json_videos, sample_probability=1.0, max_items=-1, max_frames=60, mode='sample', class_dist=[0.35,0.25,0.2,0.2], **kwargs):

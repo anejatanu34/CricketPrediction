@@ -6,6 +6,7 @@
 # Download pretrained weights from:
 # https://s3.amazonaws.com/lasagne/recipes/pretrained/imagenet/vgg16.pkl
 
+import lasagne
 from lasagne.layers import InputLayer
 from lasagne.layers import DenseLayer
 from lasagne.layers import NonlinearityLayer
@@ -14,8 +15,8 @@ from lasagne.layers import ReshapeLayer
 from lasagne.layers.recurrent import LSTMLayer
 from lasagne.layers import Pool2DLayer as PoolLayer
 from lasagne import nonlinearities
-from lasagne.layers import DimshuffleLayer
 from lasagne.layers import SliceLayer
+import theano.tensor as T
 
 try:
     from lasagne.layers.dnn import Conv2DDNNLayer as ConvLayer
@@ -187,3 +188,99 @@ def build_lstm_classification_model(output_neurons=4, max_frames=5, hidden_units
     net['prob'] = NonlinearityLayer(net['fc8'], softmax)
 
     return net
+
+
+def build_lstm_commentary_model(output_neurons=4, max_frames=5, hidden_units=100,
+                                last_layer='fc7', seq_length=15, vocab_size=2000):
+    # conv layers identical to VGGNet
+    net = {'input': InputLayer((None, 3, 224, 224))}
+    net['conv1_1'] = ConvLayer(
+        net['input'], 64, 3, pad=1, flip_filters=False)
+    net['conv1_2'] = ConvLayer(
+        net['conv1_1'], 64, 3, pad=1, flip_filters=False)
+    net['pool1'] = PoolLayer(net['conv1_2'], 2)
+    net['conv2_1'] = ConvLayer(
+        net['pool1'], 128, 3, pad=1, flip_filters=False)
+    net['conv2_2'] = ConvLayer(
+        net['conv2_1'], 128, 3, pad=1, flip_filters=False)
+    net['pool2'] = PoolLayer(net['conv2_2'], 2)
+    net['conv3_1'] = ConvLayer(
+        net['pool2'], 256, 3, pad=1, flip_filters=False)
+    net['conv3_2'] = ConvLayer(
+        net['conv3_1'], 256, 3, pad=1, flip_filters=False)
+    net['conv3_3'] = ConvLayer(
+        net['conv3_2'], 256, 3, pad=1, flip_filters=False)
+    net['pool3'] = PoolLayer(net['conv3_3'], 2)
+    net['conv4_1'] = ConvLayer(
+        net['pool3'], 512, 3, pad=1, flip_filters=False)
+    net['conv4_2'] = ConvLayer(
+        net['conv4_1'], 512, 3, pad=1, flip_filters=False)
+    net['conv4_3'] = ConvLayer(
+        net['conv4_2'], 512, 3, pad=1, flip_filters=False)
+    net['pool4'] = PoolLayer(net['conv4_3'], 2)
+    net['conv5_1'] = ConvLayer(
+        net['pool4'], 512, 3, pad=1, flip_filters=False)
+    net['conv5_2'] = ConvLayer(
+        net['conv5_1'], 512, 3, pad=1, flip_filters=False)
+    net['conv5_3'] = ConvLayer(
+        net['conv5_2'], 512, 3, pad=1, flip_filters=False)
+    net['pool5'] = PoolLayer(net['conv5_3'], 2)
+
+    net['fc6'] = DenseLayer(net['pool5'],  num_units=4096, W=HeNormal(gain='relu'), b=Constant(0.0))
+    net['fc6_dropout'] = DropoutLayer(net['fc6'], p=0.5)
+    fc_out = net['fc6_dropout'].output_shape
+    reshape_in = net['fc6_dropout']
+    if last_layer == 'fc7':
+        print "Last layer before LSTM is fc7"
+        net['fc7'] = DenseLayer(net['fc6_dropout'],  num_units=4096, W=HeNormal(gain='relu'), b=Constant(0.0))
+        net['fc7_dropout'] = DropoutLayer(net['fc7'], p=0.5)
+        fc_out = net['fc7_dropout'].output_shape
+        reshape_in = net['fc7_dropout']
+    else:
+        print "Last layer before LSTM is fc6"
+    net['reshape'] = ReshapeLayer(reshape_in, (-1, max_frames, fc_out[1]))
+    net['lstm_encoder'] = LSTMLayer(net['reshape'], num_units=hidden_units, grad_clipping=MAX_GRAD,
+                            nonlinearity=nonlinearities.tanh)
+
+    net['slice_encoder'] = SliceLayer(net['lstm_encoder'], -1, 1)
+    # encoder_output = lasagne.layers.get_output(net['slice_encoder'])
+
+    net['encoder_repeat'] = RepeatLayer(net['slice_encoder'], seq_length)
+
+    # todo later initialize the hidden layer to encoder_output
+    net['mask_dec'] = InputLayer(shape=(None, seq_length))
+    net['lstm_decoder'] = LSTMLayer(incoming=net['encoder_repeat'], num_units=hidden_units, mask_input=net['mask_dec'])
+
+    # print net['lstm_decoder'].output_shape
+    net['reshape_decoder'] = ReshapeLayer(net['lstm_decoder'], (-1, [2]))
+    # end of decoder
+    net['fc8'] = DenseLayer(net['reshape_decoder'], num_units=vocab_size,
+                            W=HeNormal(), b=Constant(0.0), nonlinearity=None)
+    net['prob'] = NonlinearityLayer(net['fc8'], softmax)
+
+    return net
+
+
+class RepeatLayer(lasagne.layers.Layer):
+    """
+    Code from https://github.com/DTU-deeplearning/day3-RNN/blob/master/RNN.ipynb
+    """
+    def __init__(self, incoming, n, **kwargs):
+        """
+        The input is expected to be a 2D tensor of shape
+        (num_batch, num_features). The input is repeated
+        n times such that the output will be
+        (num_batch, n, num_features)
+        """
+        super(RepeatLayer, self).__init__(incoming, **kwargs)
+        self.n = n
+
+    def get_output_shape_for(self, input_shape):
+        return tuple([input_shape[0], self.n] + list(input_shape[1:]))
+
+    def get_output_for(self, input, **kwargs):
+        #repeat the input n times
+        tensors = [input]*self.n
+        stacked = T.stack(*tensors)
+        dim = [1, 0] + range(2, input.ndim + 1)
+        return stacked.dimshuffle(dim)
