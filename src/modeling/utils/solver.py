@@ -141,7 +141,7 @@ class Solver(object):
 
     def _check_train_accuracy(self):
         train_acc = 0
-        num_train = self.train_X.shape[0]
+        num_train = self.train_X.shape[0]/self.seq_length
         for X_batch, y_batch in self._get_train_data():
             batch_loss, train_predictions, scores = self.test_function(X_batch, y_batch)
             batch_acc = self._compute_accuracy(train_predictions, y_batch)
@@ -152,7 +152,7 @@ class Solver(object):
 
     def _check_val_accuracy(self):
         val_acc = 0
-        num_val = self.val_X.shape[0]
+        num_val = self.val_X.shape[0]/self.seq_length
         val_loss = 0
         for val_X_batch, val_y_batch in self._get_val_data():
             batch_loss, val_predictions, scores = self.test_function(val_X_batch, val_y_batch)
@@ -357,7 +357,7 @@ class LSTMSolver(Solver):
         return predictions, prediction_scores
 
     def _get_val_data(self):
-        num_val = (self.val_X.shape[0]/self.seq_length)
+        num_val = self.val_X.shape[0]/self.seq_length
         start = 0
         while start < num_val:
             end = min(start + self.batch_size, num_val)
