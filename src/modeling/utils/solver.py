@@ -22,7 +22,8 @@ class Solver(object):
                  output_lr=1e-1, tune_lr=1e-3, lr_decay=0.95,
                  model_type='average',
                  num_epochs=1, batch_size=25, tuning_layers=[],
-                 num_classes=4, reg=1e-4):
+                 num_classes=4, reg=1e-4,
+                 decay_after=1):
         """
         Create a new FrameAverageSolver instance
         :param model: Instance of the Model class (or a subclass of it) to train
@@ -53,6 +54,7 @@ class Solver(object):
         self.train_loss_history = []
         self.train_acc_history = []
         self.val_acc_history = []
+        self.decay_after = decay_after
 
         if self.model_type == 'late':
             self.tuning_layers = model.tuning_layers
@@ -101,7 +103,7 @@ class Solver(object):
             self.train_loss_history.append((i+1, loss))
             self.train_acc_history.append((i+1, acc))
 
-            if 0 < self.lr_decay < 1:
+            if 0 < self.lr_decay < 1 and self.num_epochs % self.decay_after == 0:
                 self.output_lr *= self.lr_decay
                 self.tuning_lr *= self.lr_decay
 

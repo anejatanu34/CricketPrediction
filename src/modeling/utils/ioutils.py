@@ -322,7 +322,7 @@ def read_dataset_commentary(json_videos, sample_probability=1.0, max_frames=60, 
         data['val_X'].append(frames)
         data['val_y'].append(labels_mapping[3][ind])
         data['val_mask'].append(labels_mapping[4][ind])
-        clip_ids['val'].append(str(labels_mapping[0][ind])+','+str(labels_mapping[1][ind])+','+str(labels_mapping[3][ind]))
+        clip_ids['val'].append(str(labels_mapping[0][ind])+','+str(labels_mapping[1][ind])+','+str([idx_to_word[m] for m in labels_mapping[3][ind]]))
         del labels_mapping[0][ind]
         del labels_mapping[1][ind]
         del labels_mapping[2][ind]
@@ -344,7 +344,7 @@ def read_dataset_commentary(json_videos, sample_probability=1.0, max_frames=60, 
         data['test_X'].append(frames)
         data['test_y'].append(labels_mapping[3][ind])
         data['test_mask'].append(labels_mapping[4][ind])
-        clip_ids['test'].append(str(labels_mapping[0][ind])+','+str(labels_mapping[1][ind])+','+str(labels_mapping[3][ind]))
+        clip_ids['test'].append(str(labels_mapping[0][ind])+','+str(labels_mapping[1][ind])+','+str([idx_to_word[m] for m in labels_mapping[3][ind]]))
         del labels_mapping[0][ind]
         del labels_mapping[1][ind]
         del labels_mapping[2][ind]

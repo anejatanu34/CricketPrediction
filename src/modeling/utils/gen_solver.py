@@ -55,7 +55,8 @@ class EncoderDecoderSolver(Solver):
             self.train_loss_history.append((i+1, loss))
             self.train_acc_history.append((i+1, acc))
 
-            if 0 < self.lr_decay < 1:
+            if 0 < self.lr_decay < 1 and self.num_epochs % self.decay_after == 0:
+                print "Decaying learning rates"
                 self.output_lr *= self.lr_decay
                 self.tuning_lr *= self.lr_decay
 

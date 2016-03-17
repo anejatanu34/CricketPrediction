@@ -116,6 +116,8 @@ def main(args):
                                   output_lr=args.output_lr,
                                   tune_lr=args.output_lr,
                                   tuning_layers=tuning_layers,
+                                  decay_after=args.decay_after,
+                                  lr_decay=args.lr_decay,
                                   reg=args.reg,
                                   max_frames=args.max_frames,
                                   word_to_idx=word_to_idx,
@@ -167,6 +169,8 @@ if __name__ == "__main__":
                                                                    'input and output sequencs')
     parser.add_argument('--last_layer', type=str, default='fc7', choices=['fc6', 'fc7'],
                         help='Key for layer that feeds into LSTM layer')
+    parser.add_argument('--lr_decay', type=float, default=0.95, help='Learning rate decay')
+    parser.add_argument('--decay_after', type=int, default=1, help='Number of epochs after which to decay learning rate')
 
     clargs = parser.parse_args()
 
