@@ -325,7 +325,7 @@ class LSTMSolver(Solver):
         Iterate over minibatches in one epoch
         :return a single batch of the training data
         """
-        num_train = self.train_X.shape[0]/self.seq_length
+        num_train = self.train_X.shape[0]
         num_iterations_per_epoch = num_train/(self.batch_size * self.seq_length)
         indexes = np.arange(num_train/self.seq_length)
         for i in xrange(num_iterations_per_epoch):

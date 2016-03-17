@@ -382,7 +382,7 @@ def read_dataset_commentary(json_videos, sample_probability=1.0, max_frames=60, 
                 data['train_X'].append(frames)
                 data['train_y'].append(labels_mapping[3][ind])
                 data['train_mask'].append(labels_mapping[4][ind])
-                clip_ids['train'].append(str(labels_mapping[0][ind])+','+str(labels_mapping[1][ind])+','+str(labels_mapping[3][ind]))
+                clip_ids['train'].append(str(labels_mapping[0][ind])+','+str(labels_mapping[1][ind])+','+str([idx_to_word[m] for m in labels_mapping[3][ind]]))
                 del frames
 
                 ctr += 1

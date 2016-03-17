@@ -249,7 +249,8 @@ def build_lstm_commentary_model(output_neurons=4, max_frames=5, hidden_units=100
 
     # todo later initialize the hidden layer to encoder_output
     net['mask_dec'] = InputLayer(shape=(None, seq_length))
-    net['lstm_decoder'] = LSTMLayer(incoming=net['encoder_repeat'], num_units=hidden_units, mask_input=net['mask_dec'])
+    net['lstm_decoder'] = LSTMLayer(incoming=net['encoder_repeat'], num_units=hidden_units, mask_input=net['mask_dec'],
+                                    hid_init=net['slice_encoder'])
 
     # print net['lstm_decoder'].output_shape
     net['reshape_decoder'] = ReshapeLayer(net['lstm_decoder'], (-1, [2]))
