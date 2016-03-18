@@ -79,7 +79,7 @@ def read_cricket_labels(innings1_file, innings2_file, read_commentary=False):
     for innings in [innings1_file, innings2_file]:
         infile = open(innings, 'r')
         for line in infile.readlines():
-            cols = line.strip().split(',')
+            cols = line.strip().split(',', 7)
             detailed_outcome = cols[4]
             if 'wide' in detailed_outcome or 'no ball' in detailed_outcome:
                 illegal_balls.append(ball_num)
@@ -145,7 +145,6 @@ def process_commentary(commentary_info, max_seq_length=15):
         bowler = bowler.lower()
         batsman = batsman.lower()
         commentary = commentary.strip().lower()
-        commentary = commentary.translate(string.maketrans("",""), string.punctuation)
         commentary = commentary.replace(bowler, "BOWLER")
         commentary = commentary.replace(batsman, "BATSMAN")
         if commentary.find('.') > 0:
